@@ -40,6 +40,34 @@ def _is_question_text(text: str) -> bool:
     return "pregunta" in normalized and "?" in normalized
 
 
+def _extract_question_from_row(row) -> tuple[str | None, int]:
+    row_cells = [(cell.text or "").strip() for cell in row.cells]
+    row_text = " ".join(part for part in row_cells if part)
+    if not row_text:
+        return None, 0
+
+    match = QUESTION_RE.search(row_text)
+    if not match:
+        return None, 0
+
+    question = row_text[match.end() :].strip()
+    if not question:
+        return None, 0
+
+    # Intentamos ubicar la columna más probable para la respuesta.
+    # Prioridad: celda con signo de pregunta, luego celda con texto más largo.
+    col_idx = 0
+    cells_with_q = [idx for idx, cell_text in enumerate(row_cells) if "?" in cell_text]
+    if cells_with_q:
+        col_idx = cells_with_q[0]
+    else:
+        non_empty_cells = [(idx, len(text)) for idx, text in enumerate(row_cells) if text]
+        if non_empty_cells:
+            col_idx = max(non_empty_cells, key=lambda item: item[1])[0]
+
+    return question, col_idx
+
+
 def analyze_docx(docx_path: str) -> DocAnalysis:
     doc = Document(docx_path)
     placeholders: dict[str, str] = {}
@@ -55,6 +83,22 @@ def analyze_docx(docx_path: str) -> DocAnalysis:
 
     for table_idx, table in enumerate(doc.tables):
         for row_idx, row in enumerate(table.rows):
+            row_question, row_col_idx = _extract_question_from_row(row)
+            if row_question and row_idx + 1 < len(table.rows):
+                answer_cell = table.rows[row_idx + 1].cells[row_col_idx]
+                answer_text = (answer_cell.text or "").strip()
+                next_row_question, _ = _extract_question_from_row(table.rows[row_idx + 1])
+                if not _is_question_text(answer_text) and not next_row_question:
+                    questions.append(
+                        QuestionSlot(
+                            question=row_question,
+                            table_idx=table_idx,
+                            question_row_idx=row_idx,
+                            answer_row_idx=row_idx + 1,
+                            col_idx=row_col_idx,
+                        )
+                    )
+
             for col_idx, cell in enumerate(row.cells):
                 text = (cell.text or "").strip()
                 for match in PLACEHOLDER_RE.finditer(text):
@@ -67,19 +111,25 @@ def analyze_docx(docx_path: str) -> DocAnalysis:
                 if normalized.startswith("diagrama"):
                     has_diagram_section = True
 
+                # Compatibilidad adicional: pregunta contenida íntegramente en una sola celda.
                 if _is_question_text(text) and row_idx + 1 < len(table.rows):
                     answer_cell = table.rows[row_idx + 1].cells[col_idx]
                     answer_text = (answer_cell.text or "").strip()
                     if not _is_question_text(answer_text):
-                        questions.append(
-                            QuestionSlot(
-                                question=_strip_question_label(text),
-                                table_idx=table_idx,
-                                question_row_idx=row_idx,
-                                answer_row_idx=row_idx + 1,
-                                col_idx=col_idx,
+                        question_text = _strip_question_label(text)
+                        if not any(
+                            q.table_idx == table_idx and q.question_row_idx == row_idx and q.col_idx == col_idx
+                            for q in questions
+                        ):
+                            questions.append(
+                                QuestionSlot(
+                                    question=question_text,
+                                    table_idx=table_idx,
+                                    question_row_idx=row_idx,
+                                    answer_row_idx=row_idx + 1,
+                                    col_idx=col_idx,
+                                )
                             )
-                        )
 
     return DocAnalysis(
         placeholders=placeholders,
@@ -125,6 +175,7 @@ def fill_docx_sections(
     placeholder_replacements: dict[str, str] | None = None,
 ) -> None:
     doc = Document(docx_input)
+    analysis = analyze_docx(docx_input)
 
     if placeholder_replacements:
 
@@ -143,17 +194,18 @@ def fill_docx_sections(
                     if cell.text:
                         cell.text = replace_text(cell.text)
 
-    q_idx = 0
+    for q_idx, slot in enumerate(analysis.questions):
+        if q_idx >= len(question_answers):
+            break
+        table = doc.tables[slot.table_idx]
+        answer_cell = table.rows[slot.answer_row_idx].cells[slot.col_idx]
+        answer_cell.text = question_answers[q_idx]
+
     for table in doc.tables:
-        for row_idx, row in enumerate(table.rows):
-            for col_idx, cell in enumerate(row.cells):
+        for row in table.rows:
+            for cell in row.cells:
                 text = (cell.text or "").strip()
                 normalized = _normalize(text)
-
-                if _is_question_text(text) and row_idx + 1 < len(table.rows) and q_idx < len(question_answers):
-                    answer_cell = table.rows[row_idx + 1].cells[col_idx]
-                    answer_cell.text = question_answers[q_idx]
-                    q_idx += 1
 
                 if summary and normalized.startswith("resumen"):
                     cell.text = f"Resumen\n\n{summary.strip()}"
