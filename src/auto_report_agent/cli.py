@@ -5,7 +5,7 @@ import sys
 
 from .doc_writer import analyze_docx, fill_docx_sections
 from .ollama_client import OllamaClient
-from .prompts import build_document_prompt
+from .prompts import build_document_prompt, build_question_only_prompt
 from .repo_analyzer import build_repo_context
 
 
@@ -31,11 +31,47 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Lee todos los archivos de código soportados del repositorio (puede tardar más).",
     )
+    parser.add_argument(
+        "--debug-llm",
+        action="store_true",
+        help="Imprime en consola información de depuración del JSON devuelto por el modelo.",
+    )
+    parser.add_argument(
+        "--debug-llm-max-chars",
+        type=int,
+        default=1200,
+        help="Máximo de caracteres a imprimir por respuesta cruda del modelo en modo debug.",
+    )
+    parser.add_argument(
+        "--debug-llm-file",
+        default="",
+        help="Ruta opcional para guardar el contenido crudo devuelto por el modelo.",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+
+    def debug_llm_dump(stage: str, payload: dict, raw_text: str, file_path: str = "") -> None:
+        if not args.debug_llm:
+            return
+
+        print(f"[DEBUG][{stage}] Claves JSON: {sorted(payload.keys()) if isinstance(payload, dict) else 'N/A'}")
+        preview = (raw_text or "").strip()
+        if not preview:
+            preview = "<respuesta vacía>"
+        if len(preview) > args.debug_llm_max_chars:
+            preview = preview[: args.debug_llm_max_chars] + "...(truncado)"
+        print(f"[DEBUG][{stage}] Respuesta cruda (preview): {preview}")
+
+        if file_path:
+            try:
+                with open(file_path, "w", encoding="utf-8") as handle:
+                    handle.write(raw_text or "")
+                print(f"[DEBUG][{stage}] Respuesta cruda guardada en: {file_path}")
+            except Exception as exc:
+                print(f"[DEBUG][{stage}] No se pudo guardar debug en archivo: {exc}")
 
     analysis = analyze_docx(args.docx_input)
     questions = [slot.question for slot in analysis.questions]
@@ -74,13 +110,53 @@ def main() -> int:
     client = OllamaClient(base_url=args.ollama_url, model=args.model)
     print(f"[3/4] Solicitando generación al modelo '{args.model}'...")
     llm_result = client.generate_json(prompt)
+    debug_llm_dump(
+        stage="initial",
+        payload=llm_result,
+        raw_text=client.last_raw_response,
+        file_path=args.debug_llm_file.strip(),
+    )
 
-    qa_items = llm_result.get("question_answers", [])
-    question_answers: list[str] = []
-    if isinstance(qa_items, list):
-        for item in qa_items:
-            if isinstance(item, dict):
-                question_answers.append(str(item.get("answer", "")).strip())
+    def extract_question_answers(payload: dict) -> list[str]:
+        answers: list[str] = []
+
+        qa_items = payload.get("question_answers", [])
+        if isinstance(qa_items, list):
+            for item in qa_items:
+                if isinstance(item, dict):
+                    answer = str(item.get("answer", "")).strip()
+                    if answer:
+                        answers.append(answer)
+                elif isinstance(item, str) and item.strip():
+                    answers.append(item.strip())
+
+        if answers:
+            return answers
+
+        alt_items = payload.get("answers", [])
+        if isinstance(alt_items, list):
+            for item in alt_items:
+                if isinstance(item, dict):
+                    answer = str(item.get("answer", "")).strip()
+                    if answer:
+                        answers.append(answer)
+                elif isinstance(item, str) and item.strip():
+                    answers.append(item.strip())
+        if answers:
+            return answers
+
+        qa_map = payload.get("qa")
+        if isinstance(qa_map, dict):
+            for question in questions:
+                answer = qa_map.get(question)
+                if isinstance(answer, str) and answer.strip():
+                    answers.append(answer.strip())
+        if answers:
+            return answers
+
+        return []
+
+    question_answers = extract_question_answers(llm_result)
 
     summary = str(llm_result.get("summary", "")).strip() or None
     diagram = str(llm_result.get("diagram", "")).strip() or None
@@ -88,8 +164,33 @@ def main() -> int:
     if not isinstance(fields, dict):
         fields = {}
 
+    if questions and len(question_answers) < len(questions):
+        print("[3.1/4] Reintento focalizado para recuperar respuestas de preguntas...")
+        recovery_prompt = build_question_only_prompt(
+            repo_context=repo_context.to_prompt_context(),
+            questions=questions,
+        )
+        recovery_result = client.generate_json(recovery_prompt, temperature=0.1)
+        recovery_debug_file = ""
+        if args.debug_llm_file.strip():
+            recovery_debug_file = f"{args.debug_llm_file}.retry"
+        debug_llm_dump(
+            stage="retry",
+            payload=recovery_result,
+            raw_text=client.last_raw_response,
+            file_path=recovery_debug_file,
+        )
+        recovered_answers = extract_question_answers(recovery_result)
+        if recovered_answers:
+            question_answers = recovered_answers
+
     if questions and not question_answers:
-        print("El modelo no devolvió respuestas de preguntas en 'question_answers'.")
+        if args.debug_llm:
+            print(
+                "[DEBUG][failure] No se pudieron extraer respuestas. "
+                "Activa/usa --debug-llm-file para inspeccionar la salida cruda completa."
+            )
+        print("El modelo no devolvió respuestas de preguntas ni en el reintento focalizado.")
         return 3
 
     while len(question_answers) < len(questions):

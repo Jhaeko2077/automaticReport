@@ -92,6 +92,9 @@ Opciones útiles:
 - `--max-file-chars` caracteres por archivo
 - `--commit-limit` cantidad de commits recientes
 - `--read-all-code` fuerza lectura de todos los archivos de código soportados
+- `--debug-llm` imprime en consola claves JSON y preview de la salida cruda del modelo
+- `--debug-llm-max-chars` tamaño máximo del preview de debug en consola
+- `--debug-llm-file` guarda la respuesta cruda completa del modelo en un archivo para diagnóstico
 
 ---
 
@@ -152,4 +155,3 @@ Opciones útiles:
 - Soporte para `.doc` legado vía conversión a `.docx`
 - Modo incremental para actualizar solo campos vacíos
 - Exportar además a Markdown/PDF
-
