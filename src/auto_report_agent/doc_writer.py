@@ -47,6 +47,11 @@ def analyze_docx(docx_path: str) -> DocAnalysis:
     has_summary_section = False
     has_diagram_section = False
 
+
+def extract_placeholders(docx_path: str) -> dict[str, str]:
+    doc = Document(docx_path)
+    found: dict[str, str] = {}
+
     for p in doc.paragraphs:
         text = p.text or ""
         for match in PLACEHOLDER_RE.finditer(text):
@@ -87,6 +92,17 @@ def analyze_docx(docx_path: str) -> DocAnalysis:
         has_summary_section=has_summary_section,
         has_diagram_section=has_diagram_section,
     )
+            found.setdefault(key, text.strip())
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                text = cell.text or ""
+                for match in PLACEHOLDER_RE.finditer(text):
+                    key = match.group(1)
+                    found.setdefault(key, text.strip())
+
+    return found
 
 
 def fill_docx_template(docx_input: str, docx_output: str, replacements: dict[str, str]) -> None:

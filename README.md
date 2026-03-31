@@ -1,16 +1,5 @@
 # Agente local de documentación automática con Ollama
 
-Este proyecto crea un **agente en consola (CLI)** que analiza un repositorio y completa un documento `.docx` local con respuestas generadas por IA.
-
-Está pensado para casos como tu formato de trabajo final:
-- tabla con **Preguntas 01, 02, 03...**,
-- sección **Resumen**,
-- sección **Diagrama**.
-
-El agente ahora **lee las preguntas directamente desde el cuadro** (aunque cambien en cada documento) y escribe las respuestas en el espacio inferior correspondiente.
-
----
-
 ## ¿Qué hace?
 
 1. Lee el repositorio objetivo:
@@ -31,6 +20,9 @@ El agente ahora **lee las preguntas directamente desde el cuadro** (aunque cambi
    - cada respuesta debajo de su pregunta,
    - resumen en el bloque “Resumen”,
    - diagrama en el bloque “Diagrama”.
+2. Lee una plantilla `.docx` y detecta placeholders con formato `{{NOMBRE_CAMPO}}`.
+3. Usa **Ollama local** (por defecto modelo `llama3`) para generar contenido de cada campo.
+4. Guarda un nuevo `.docx` con los datos completos.
 
 ---
 
@@ -64,6 +56,18 @@ Con tu formato actual **no necesitas placeholders obligatorios**.
 
 ### Opcional: placeholders
 También puedes usar `{{PROJECT_SUMMARY}}`, `{{QUESTION_1}}`, etc. y el sistema los completa desde el JSON `fields`.
+## Formato de la plantilla `.docx`
+
+Dentro de tu documento, coloca placeholders así:
+
+- `{{PROJECT_SUMMARY}}`
+- `{{CODE_DIAGRAM}}`
+- `{{QUESTION_1}}`
+- `{{QUESTION_2}}`
+
+El agente reemplaza cada placeholder por texto generado en base al repositorio.
+
+> Recomendación: usa nombres claros. Si el placeholder contiene `DIAGRAM`, el agente intentará devolver un diagrama en formato Mermaid.
 
 ---
 
@@ -74,6 +78,10 @@ python run_agent.py \
   --repo-path /ruta/a/tu/repositorio \
   --docx-input /ruta/PIAD-426_FORMATOALUMNOTRABAJOFINAL.docx \
   --docx-output /ruta/PIAD-426_COMPLETADO.docx \
+python -m auto_report_agent.cli \
+  --repo-path /ruta/a/tu/repositorio \
+  --docx-input /ruta/plantilla.docx \
+  --docx-output /ruta/reporte_completado.docx \
   --model llama3
 ```
 
@@ -117,3 +125,31 @@ Opciones útiles:
 - Soporte para múltiples tipos de plantillas académicas.
 - Validación automática de calidad de respuestas.
 - Modo “solo actualizar secciones vacías”.
+
+---
+
+## Ejemplo de flujo completo
+
+1. Creas tu plantilla `.docx` con placeholders.
+2. Ejecutas el comando.
+3. Obtienes el documento completo y listo para revisar.
+4. Iteras ajustando prompt, placeholders y modelo.
+
+---
+
+## Qué conectar para que funcione en tu máquina
+
+- **Ollama local** activo (`ollama serve`)
+- **Modelo local** descargado (`llama3` u otro)
+- **Repositorio objetivo** ya clonado localmente
+- **Plantilla `.docx`** con placeholders
+
+---
+
+## Mejoras recomendadas (siguiente paso)
+
+- Validación de calidad por sección (auto-revisión de respuestas)
+- Soporte para `.doc` legado vía conversión a `.docx`
+- Modo incremental para actualizar solo campos vacíos
+- Exportar además a Markdown/PDF
+
