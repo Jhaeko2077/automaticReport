@@ -56,8 +56,9 @@ def _build_file_tree(repo_path: Path, max_entries: int = 500) -> str:
 def _collect_code_samples(repo_path: Path, max_files: int, max_file_chars: int) -> str:
     snippets: list[str] = []
     selected = 0
+    read_all = max_files <= 0
     for p in sorted(repo_path.rglob("*")):
-        if selected >= max_files:
+        if not read_all and selected >= max_files:
             break
         if not p.is_file() or ".git" in p.parts:
             continue

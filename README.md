@@ -83,6 +83,7 @@ Opciones útiles:
 - `--max-files` cantidad de archivos para muestrear
 - `--max-file-chars` caracteres por archivo
 - `--commit-limit` cantidad de commits recientes
+- `--read-all-code` fuerza lectura de todos los archivos de código soportados
 
 ---
 
