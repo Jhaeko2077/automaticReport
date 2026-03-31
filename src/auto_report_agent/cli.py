@@ -73,6 +73,18 @@ def main() -> int:
             except Exception as exc:
                 print(f"[DEBUG][{stage}] No se pudo guardar debug en archivo: {exc}")
 
+    def print_failure_diagnostics(stage: str, payload: dict, raw_attempts: list[str]) -> None:
+        keys = sorted(payload.keys()) if isinstance(payload, dict) else []
+        print(f"[ERROR][{stage}] Claves recibidas por el modelo: {keys}")
+        if not raw_attempts:
+            print(f"[ERROR][{stage}] El modelo devolvió texto vacío.")
+            return
+        for idx, raw in enumerate(raw_attempts, start=1):
+            preview = (raw or "").strip()
+            if len(preview) > 500:
+                preview = preview[:500] + "...(truncado)"
+            print(f"[ERROR][{stage}] intento {idx} raw preview => {preview or '<vacío>'}")
+
     analysis = analyze_docx(args.docx_input)
     questions = [slot.question for slot in analysis.questions]
 
@@ -110,6 +122,7 @@ def main() -> int:
     client = OllamaClient(base_url=args.ollama_url, model=args.model)
     print(f"[3/4] Solicitando generación al modelo '{args.model}'...")
     llm_result = client.generate_json(prompt)
+    initial_raw_attempts = list(client.last_attempt_raw_responses)
     debug_llm_dump(
         stage="initial",
         payload=llm_result,
@@ -154,6 +167,31 @@ def main() -> int:
         if answers:
             return answers
 
+        spanish_items = payload.get("respuestas", [])
+        if isinstance(spanish_items, list):
+            for item in spanish_items:
+                if isinstance(item, str) and item.strip():
+                    answers.append(item.strip())
+                elif isinstance(item, dict):
+                    answer = str(item.get("respuesta", "")).strip()
+                    if answer:
+                        answers.append(answer)
+        if answers:
+            return answers
+
+        qa_obj = payload.get("question_answers")
+        if isinstance(qa_obj, dict):
+            for question in questions:
+                value = qa_obj.get(question)
+                if isinstance(value, str) and value.strip():
+                    answers.append(value.strip())
+                elif isinstance(value, dict):
+                    answer = str(value.get("answer", "")).strip()
+                    if answer:
+                        answers.append(answer)
+        if answers:
+            return answers
+
         return []
 
     question_answers = extract_question_answers(llm_result)
@@ -171,6 +209,7 @@ def main() -> int:
             questions=questions,
         )
         recovery_result = client.generate_json(recovery_prompt, temperature=0.1)
+        retry_raw_attempts = list(client.last_attempt_raw_responses)
         recovery_debug_file = ""
         if args.debug_llm_file.strip():
             recovery_debug_file = f"{args.debug_llm_file}.retry"
@@ -185,13 +224,23 @@ def main() -> int:
             question_answers = recovered_answers
 
     if questions and not question_answers:
-        if args.debug_llm:
-            print(
-                "[DEBUG][failure] No se pudieron extraer respuestas. "
-                "Activa/usa --debug-llm-file para inspeccionar la salida cruda completa."
+        print_failure_diagnostics("initial", llm_result, initial_raw_attempts)
+        if questions:
+            print_failure_diagnostics(
+                "retry",
+                recovery_result if "recovery_result" in locals() else {},
+                retry_raw_attempts if "retry_raw_attempts" in locals() else [],
             )
-        print("El modelo no devolvió respuestas de preguntas ni en el reintento focalizado.")
-        return 3
+        if args.debug_llm:
+            print("[DEBUG][failure] Revisa también --debug-llm-file para ver la respuesta completa sin truncar.")
+        print(
+            "Advertencia: el modelo no devolvió respuestas utilizables. "
+            "Se completarán con texto de diagnóstico para no perder el progreso."
+        )
+        question_answers = [
+            "No fue posible extraer respuesta del modelo. Revisa la salida de diagnóstico en consola."
+            for _ in questions
+        ]
 
     while len(question_answers) < len(questions):
         question_answers.append("Respuesta no generada por el modelo.")

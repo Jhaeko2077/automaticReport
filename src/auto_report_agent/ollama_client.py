@@ -13,6 +13,7 @@ class OllamaClient:
         self.model = model
         self.last_raw_response: str = ""
         self.last_response_payload: dict[str, Any] = {}
+        self.last_attempt_raw_responses: list[str] = []
 
     def _extract_text(self, data: dict[str, Any]) -> str:
         response_text = data.get("response")
@@ -79,6 +80,7 @@ class OllamaClient:
 
         last_error: Exception | None = None
         raw_attempts: list[str] = []
+        self.last_attempt_raw_responses = []
         for attempt_prompt in attempts:
             payload = {**base_payload, "prompt": attempt_prompt}
             response = requests.post(url, json=payload, timeout=180)
@@ -92,6 +94,7 @@ class OllamaClient:
             self.last_raw_response = text
             self.last_response_payload = data if isinstance(data, dict) else {}
             raw_attempts.append(text)
+            self.last_attempt_raw_responses.append(text)
             try:
                 return self._parse_json_from_text(text)
             except (json.JSONDecodeError, ValueError):
