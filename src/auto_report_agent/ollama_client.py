@@ -11,6 +11,9 @@ class OllamaClient:
     def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3") -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
+        self.last_raw_response: str = ""
+        self.last_response_payload: dict[str, Any] = {}
+        self.last_attempt_raw_responses: list[str] = []
 
     def _extract_text(self, data: dict[str, Any]) -> str:
         response_text = data.get("response")
@@ -76,6 +79,8 @@ class OllamaClient:
         ]
 
         last_error: Exception | None = None
+        raw_attempts: list[str] = []
+        self.last_attempt_raw_responses = []
         for attempt_prompt in attempts:
             payload = {**base_payload, "prompt": attempt_prompt}
             response = requests.post(url, json=payload, timeout=180)
@@ -86,6 +91,10 @@ class OllamaClient:
                 raise ValueError(f"Ollama error: {data['error']}")
 
             text = self._extract_text(data)
+            self.last_raw_response = text
+            self.last_response_payload = data if isinstance(data, dict) else {}
+            raw_attempts.append(text)
+            self.last_attempt_raw_responses.append(text)
             try:
                 return self._parse_json_from_text(text)
             except (json.JSONDecodeError, ValueError):
@@ -95,4 +104,8 @@ class OllamaClient:
                 )
 
         assert last_error is not None
-        raise last_error
+        snippets = []
+        for idx, raw in enumerate(raw_attempts, start=1):
+            compact = raw.replace("\n", "\\n")
+            snippets.append(f"attempt_{idx}='{compact[:400]}'")
+        raise ValueError(f"{last_error}. Raw snippets: {' | '.join(snippets)}")
