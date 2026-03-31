@@ -42,7 +42,16 @@ Preguntas detectadas:
 ¿Debe generar resumen?: {str(include_summary).lower()}
 ¿Debe generar diagrama?: {str(include_diagram).lower()}
 
-Placeholders detectados:
+Placeholders detectados (clave -> contexto de línea del documento):
+{placeholders_json}
+
+Contexto del repositorio:
+{repo_context}
+
+Devuelve únicamente el JSON final.
+""".strip()
+
+
 def build_placeholder_prompt(repo_context: str, placeholders: dict[str, str]) -> str:
     placeholders_json = json.dumps(placeholders, ensure_ascii=False, indent=2)
     return f"""
