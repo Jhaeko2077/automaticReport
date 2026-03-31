@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "auto-report-agent"
+version = "0.1.0"
+description = "Agente local para completar reportes DOCX desde un repositorio usando Ollama"
+requires-python = ">=3.10"
+dependencies = [
+  "python-docx==1.1.2",
+  "requests==2.32.3",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
