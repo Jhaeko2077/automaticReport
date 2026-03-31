@@ -77,3 +77,34 @@ Contexto del repositorio:
 
 Devuelve únicamente el JSON final.
 """.strip()
+
+
+def build_question_only_prompt(repo_context: str, questions: list[str]) -> str:
+    questions_json = json.dumps(questions, ensure_ascii=False, indent=2)
+    return f"""
+Eres un arquitecto de software senior.
+Debes responder preguntas sobre un repositorio.
+
+Reglas estrictas:
+1) Responde SOLO un objeto JSON válido.
+2) Debes responder TODAS las preguntas solicitadas, sin omitir ninguna.
+3) Usa exactamente esta estructura:
+{{
+  "question_answers": [
+    {{"question": "pregunta original 1", "answer": "respuesta 1"}},
+    {{"question": "pregunta original 2", "answer": "respuesta 2"}}
+  ]
+}}
+4) "question_answers" debe tener exactamente {len(questions)} elementos.
+5) Cada "question" debe conservar el mismo texto de entrada.
+6) Cada "answer" debe estar en español técnico, clara y completa (1-2 párrafos).
+7) No incluyas claves adicionales ni texto fuera del JSON.
+
+Preguntas:
+{questions_json}
+
+Contexto del repositorio:
+{repo_context}
+
+Devuelve únicamente el JSON final.
+""".strip()

@@ -5,7 +5,7 @@ import sys
 
 from .doc_writer import analyze_docx, fill_docx_sections
 from .ollama_client import OllamaClient
-from .prompts import build_document_prompt
+from .prompts import build_document_prompt, build_question_only_prompt
 from .repo_analyzer import build_repo_context
 
 
@@ -75,12 +75,46 @@ def main() -> int:
     print(f"[3/4] Solicitando generación al modelo '{args.model}'...")
     llm_result = client.generate_json(prompt)
 
-    qa_items = llm_result.get("question_answers", [])
-    question_answers: list[str] = []
-    if isinstance(qa_items, list):
-        for item in qa_items:
-            if isinstance(item, dict):
-                question_answers.append(str(item.get("answer", "")).strip())
+    def extract_question_answers(payload: dict) -> list[str]:
+        answers: list[str] = []
+
+        qa_items = payload.get("question_answers", [])
+        if isinstance(qa_items, list):
+            for item in qa_items:
+                if isinstance(item, dict):
+                    answer = str(item.get("answer", "")).strip()
+                    if answer:
+                        answers.append(answer)
+                elif isinstance(item, str) and item.strip():
+                    answers.append(item.strip())
+
+        if answers:
+            return answers
+
+        alt_items = payload.get("answers", [])
+        if isinstance(alt_items, list):
+            for item in alt_items:
+                if isinstance(item, dict):
+                    answer = str(item.get("answer", "")).strip()
+                    if answer:
+                        answers.append(answer)
+                elif isinstance(item, str) and item.strip():
+                    answers.append(item.strip())
+        if answers:
+            return answers
+
+        qa_map = payload.get("qa")
+        if isinstance(qa_map, dict):
+            for question in questions:
+                answer = qa_map.get(question)
+                if isinstance(answer, str) and answer.strip():
+                    answers.append(answer.strip())
+        if answers:
+            return answers
+
+        return []
+
+    question_answers = extract_question_answers(llm_result)
 
     summary = str(llm_result.get("summary", "")).strip() or None
     diagram = str(llm_result.get("diagram", "")).strip() or None
@@ -88,8 +122,19 @@ def main() -> int:
     if not isinstance(fields, dict):
         fields = {}
 
+    if questions and len(question_answers) < len(questions):
+        print("[3.1/4] Reintento focalizado para recuperar respuestas de preguntas...")
+        recovery_prompt = build_question_only_prompt(
+            repo_context=repo_context.to_prompt_context(),
+            questions=questions,
+        )
+        recovery_result = client.generate_json(recovery_prompt, temperature=0.1)
+        recovered_answers = extract_question_answers(recovery_result)
+        if recovered_answers:
+            question_answers = recovered_answers
+
     if questions and not question_answers:
-        print("El modelo no devolvió respuestas de preguntas en 'question_answers'.")
+        print("El modelo no devolvió respuestas de preguntas ni en el reintento focalizado.")
         return 3
 
     while len(question_answers) < len(questions):
