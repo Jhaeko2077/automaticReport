@@ -57,21 +57,23 @@ def _collect_code_samples(repo_path: Path, max_files: int, max_file_chars: int) 
     snippets: list[str] = []
     selected = 0
     read_all = max_files <= 0
+
     for p in sorted(repo_path.rglob("*")):
         if not read_all and selected >= max_files:
-    for p in sorted(repo_path.rglob("*")):
-        if selected >= max_files:
             break
         if not p.is_file() or ".git" in p.parts:
             continue
         if p.suffix.lower() not in TEXT_EXTENSIONS:
             continue
+
         rel = p.relative_to(repo_path)
         content = _safe_read(p, max_file_chars)
         if not content.strip():
             continue
+
         snippets.append(f"--- FILE: {rel} ---\n{content}")
         selected += 1
+
     return "\n\n".join(snippets)
 
 
