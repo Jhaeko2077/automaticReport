@@ -158,37 +158,40 @@ def main() -> int:
         if answers:
             return answers
 
+    def extract_question_answers(payload: dict) -> list[str]:
+        answers: list[str] = []
+
+        qa_items = payload.get("question_answers", [])
+        if isinstance(qa_items, list):
+            for item in qa_items:
+                if isinstance(item, dict):
+                    answer = str(item.get("answer", "")).strip()
+                    if answer:
+                        answers.append(answer)
+                elif isinstance(item, str) and item.strip():
+                    answers.append(item.strip())
+
+        if answers:
+            return answers
+
+        alt_items = payload.get("answers", [])
+        if isinstance(alt_items, list):
+            for item in alt_items:
+                if isinstance(item, dict):
+                    answer = str(item.get("answer", "")).strip()
+                    if answer:
+                        answers.append(answer)
+                elif isinstance(item, str) and item.strip():
+                    answers.append(item.strip())
+        if answers:
+            return answers
+
         qa_map = payload.get("qa")
         if isinstance(qa_map, dict):
             for question in questions:
                 answer = qa_map.get(question)
                 if isinstance(answer, str) and answer.strip():
                     answers.append(answer.strip())
-        if answers:
-            return answers
-
-        spanish_items = payload.get("respuestas", [])
-        if isinstance(spanish_items, list):
-            for item in spanish_items:
-                if isinstance(item, str) and item.strip():
-                    answers.append(item.strip())
-                elif isinstance(item, dict):
-                    answer = str(item.get("respuesta", "")).strip()
-                    if answer:
-                        answers.append(answer)
-        if answers:
-            return answers
-
-        qa_obj = payload.get("question_answers")
-        if isinstance(qa_obj, dict):
-            for question in questions:
-                value = qa_obj.get(question)
-                if isinstance(value, str) and value.strip():
-                    answers.append(value.strip())
-                elif isinstance(value, dict):
-                    answer = str(value.get("answer", "")).strip()
-                    if answer:
-                        answers.append(answer)
         if answers:
             return answers
 
@@ -209,38 +212,13 @@ def main() -> int:
             questions=questions,
         )
         recovery_result = client.generate_json(recovery_prompt, temperature=0.1)
-        retry_raw_attempts = list(client.last_attempt_raw_responses)
-        recovery_debug_file = ""
-        if args.debug_llm_file.strip():
-            recovery_debug_file = f"{args.debug_llm_file}.retry"
-        debug_llm_dump(
-            stage="retry",
-            payload=recovery_result,
-            raw_text=client.last_raw_response,
-            file_path=recovery_debug_file,
-        )
         recovered_answers = extract_question_answers(recovery_result)
         if recovered_answers:
             question_answers = recovered_answers
 
     if questions and not question_answers:
-        print_failure_diagnostics("initial", llm_result, initial_raw_attempts)
-        if questions:
-            print_failure_diagnostics(
-                "retry",
-                recovery_result if "recovery_result" in locals() else {},
-                retry_raw_attempts if "retry_raw_attempts" in locals() else [],
-            )
-        if args.debug_llm:
-            print("[DEBUG][failure] Revisa también --debug-llm-file para ver la respuesta completa sin truncar.")
-        print(
-            "Advertencia: el modelo no devolvió respuestas utilizables. "
-            "Se completarán con texto de diagnóstico para no perder el progreso."
-        )
-        question_answers = [
-            "No fue posible extraer respuesta del modelo. Revisa la salida de diagnóstico en consola."
-            for _ in questions
-        ]
+        print("El modelo no devolvió respuestas de preguntas ni en el reintento focalizado.")
+        return 3
 
     while len(question_answers) < len(questions):
         question_answers.append("Respuesta no generada por el modelo.")
