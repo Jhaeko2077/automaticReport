@@ -59,6 +59,10 @@ def main() -> int:
             return
 
         print(f"[DEBUG][{stage}] Claves JSON: {sorted(payload.keys()) if isinstance(payload, dict) else 'N/A'}")
+        print(
+            f"[DEBUG][{stage}] Parse mode: {client.last_parse_mode} | "
+            f"Meta: {client.last_response_meta}"
+        )
         preview = (raw_text or "").strip()
         if not preview:
             preview = "<respuesta vacía>"
@@ -157,19 +161,32 @@ def main() -> int:
 
     def extract_question_answers(payload: dict) -> list[str]:
         answers: list[str] = []
+        answers_by_question: dict[str, str] = {}
 
         qa_items = payload.get("question_answers", [])
         if isinstance(qa_items, list):
             for item in qa_items:
                 if isinstance(item, dict):
                     answer = str(item.get("answer", "")).strip()
+                    question = str(item.get("question", "")).strip()
                     if answer:
                         answers.append(answer)
+                        if question:
+                            answers_by_question[question] = answer
                 elif isinstance(item, str) and item.strip():
                     answers.append(item.strip())
 
+        if answers_by_question:
+            ordered_answers: list[str] = []
+            for question in questions:
+                mapped = answers_by_question.get(question)
+                if mapped:
+                    ordered_answers.append(mapped)
+            if ordered_answers:
+                return ordered_answers
+
         if answers:
-            return answers
+            return answers[: len(questions)]
 
         alt_items = payload.get("answers", [])
         if isinstance(alt_items, list):
@@ -181,7 +198,7 @@ def main() -> int:
                 elif isinstance(item, str) and item.strip():
                     answers.append(item.strip())
         if answers:
-            return answers
+            return answers[: len(questions)]
 
         qa_map = payload.get("qa")
         if isinstance(qa_map, dict):
@@ -190,7 +207,7 @@ def main() -> int:
                 if isinstance(answer, str) and answer.strip():
                     answers.append(answer.strip())
         if answers:
-            return answers
+            return answers[: len(questions)]
 
         return []
 
@@ -256,16 +273,37 @@ def main() -> int:
         recovered_answers = extract_question_answers(recovery_result)
         if recovered_answers:
             question_answers = recovered_answers
+        recovery_raw_attempts = list(client.last_attempt_raw_responses)
+        if args.debug_llm:
+            print(
+                "[DEBUG][recovery] Estadísticas => "
+                f"answers_extraidas={len(recovered_answers)}, "
+                f"raw_attempts={len(recovery_raw_attempts)}"
+            )
 
     if questions and not question_answers:
         print_failure_diagnostics(stage="initial", payload=llm_result, raw_attempts=initial_raw_attempts)
-        print_failure_diagnostics(
-            stage="recovery",
-            payload=recovery_result if "recovery_result" in locals() else {},
-            raw_attempts=client.last_attempt_raw_responses if "recovery_result" in locals() else [],
+        if recovery_result or recovery_raw_attempts:
+            print_failure_diagnostics(
+                stage="recovery",
+                payload=recovery_result,
+                raw_attempts=recovery_raw_attempts,
+            )
+        print("El modelo no devolvió respuestas de preguntas; se insertarán respuestas fallback en el DOCX.")
+        question_answers = build_fallback_answers(
+            payload=recovery_result or llm_result,
+            expected_questions=questions,
+            raw_attempts=recovery_raw_attempts or initial_raw_attempts,
         )
-        print("El modelo no devolvió respuestas de preguntas ni en el reintento focalizado.")
-        return 3
+
+    if args.debug_llm and questions:
+        print(
+            "[DEBUG][final] Resumen de ensamblado => "
+            f"preguntas_detectadas={len(questions)}, "
+            f"respuestas_finales={len(question_answers)}, "
+            f"summary_chars={len(summary or '')}, "
+            f"diagram_chars={len(diagram or '')}"
+        )
 
     while len(question_answers) < len(questions):
         question_answers.append("Respuesta no generada por el modelo.")
