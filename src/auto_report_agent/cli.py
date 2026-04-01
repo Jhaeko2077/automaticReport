@@ -26,7 +26,6 @@ def parse_args() -> argparse.Namespace:
         default=3000,
         help="Máximo de caracteres por archivo de muestra",
     )
-    parser.add_argument("--commit-limit", type=int, default=20, help="Cantidad de commits recientes")
     parser.add_argument(
         "--read-all-code",
         action="store_true",
@@ -136,7 +135,6 @@ def main() -> int:
         repo_path=args.repo_path,
         max_files=0 if args.read_all_code else args.max_files,
         max_file_chars=args.max_file_chars,
-        commit_limit=args.commit_limit,
     )
     print("[2/4] Contexto del repositorio recopilado")
 

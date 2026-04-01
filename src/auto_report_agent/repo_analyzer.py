@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 from .models import RepoContext
@@ -28,6 +27,21 @@ TEXT_EXTENSIONS = {
 }
 
 
+EXCLUDED_DIRS = {
+    ".git",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "node_modules",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".idea",
+    ".vscode",
+    "dist",
+    "build",
+}
+
+
 def _safe_read(path: Path, max_chars: int) -> str:
     try:
         return path.read_text(encoding="utf-8", errors="ignore")[:max_chars]
@@ -35,12 +49,18 @@ def _safe_read(path: Path, max_chars: int) -> str:
         return ""
 
 
+def _iter_repo_paths(repo_path: Path):
+    for p in sorted(repo_path.rglob("*")):
+        rel = p.relative_to(repo_path)
+        if any(part in EXCLUDED_DIRS or part.startswith(".") for part in rel.parts):
+            continue
+        yield p
+
+
 def _build_file_tree(repo_path: Path, max_entries: int = 500) -> str:
     lines: list[str] = []
     count = 0
-    for p in sorted(repo_path.rglob("*")):
-        if ".git" in p.parts:
-            continue
+    for p in _iter_repo_paths(repo_path):
         rel = p.relative_to(repo_path)
         depth = len(rel.parts) - 1
         prefix = "  " * depth
@@ -58,10 +78,10 @@ def _collect_code_samples(repo_path: Path, max_files: int, max_file_chars: int) 
     selected = 0
     read_all = max_files <= 0
 
-    for p in sorted(repo_path.rglob("*")):
+    for p in _iter_repo_paths(repo_path):
         if not read_all and selected >= max_files:
             break
-        if not p.is_file() or ".git" in p.parts:
+        if not p.is_file():
             continue
         if p.suffix.lower() not in TEXT_EXTENSIONS:
             continue
@@ -71,7 +91,7 @@ def _collect_code_samples(repo_path: Path, max_files: int, max_file_chars: int) 
         if not content.strip():
             continue
 
-        snippets.append(f"--- FILE: {rel} ---\n{content}")
+        snippets.append(f"### Archivo: {rel}\n{content}")
         selected += 1
 
     return "\n\n".join(snippets)
@@ -85,28 +105,10 @@ def _read_readme(repo_path: Path, max_chars: int = 10000) -> str:
     return "README not found."
 
 
-def _git_recent_commits(repo_path: Path, limit: int) -> str:
-    cmd = [
-        "git",
-        "-C",
-        str(repo_path),
-        "log",
-        f"-{limit}",
-        "--pretty=format:%h | %ad | %an | %s",
-        "--date=short",
-    ]
-    try:
-        output = subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT)
-        return output.strip() or "No commit history found."
-    except Exception:
-        return "No git history available."
-
-
 def build_repo_context(
     repo_path: str,
     max_files: int = 25,
     max_file_chars: int = 3000,
-    commit_limit: int = 20,
 ) -> RepoContext:
     root = Path(repo_path).resolve()
     if not root.exists():
@@ -117,5 +119,4 @@ def build_repo_context(
         readme_content=_read_readme(root),
         file_tree=_build_file_tree(root),
         code_samples=_collect_code_samples(root, max_files=max_files, max_file_chars=max_file_chars),
-        recent_commits=_git_recent_commits(root, limit=commit_limit),
     )
