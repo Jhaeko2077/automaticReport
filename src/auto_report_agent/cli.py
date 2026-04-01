@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 
 from .doc_writer import analyze_docx, fill_docx_sections
@@ -193,6 +194,41 @@ def main() -> int:
 
         return []
 
+    def build_fallback_answers(
+        payload: dict,
+        expected_questions: list[str],
+        raw_attempts: list[str],
+    ) -> list[str]:
+        if not expected_questions:
+            return []
+
+        payload_keys = sorted(payload.keys()) if isinstance(payload, dict) else []
+        payload_pretty = json.dumps(payload, ensure_ascii=False, indent=2) if isinstance(payload, dict) else "{}"
+
+        if len(payload_pretty) > 1200:
+            payload_pretty = payload_pretty[:1200] + "...(truncado)"
+
+        best_raw = ""
+        for item in raw_attempts:
+            if isinstance(item, str) and item.strip():
+                best_raw = item.strip()
+                break
+        if len(best_raw) > 800:
+            best_raw = best_raw[:800] + "...(truncado)"
+
+        fallback_answers: list[str] = []
+        for idx, question in enumerate(expected_questions, start=1):
+            fallback_answers.append(
+                (
+                    f"No se pudo obtener una respuesta específica y confiable para la pregunta {idx}.\n\n"
+                    f"Pregunta detectada: {question}\n\n"
+                    f"Salida real del modelo (claves): {payload_keys}\n"
+                    f"JSON devuelto por el modelo:\n{payload_pretty}\n\n"
+                    f"Texto crudo del intento:\n{best_raw or '<vacío>'}"
+                )
+            )
+        return fallback_answers
+
     question_answers = extract_question_answers(llm_result)
     print_question_diagnostics(stage="initial", payload=llm_result, expected_questions=questions)
 
@@ -202,6 +238,8 @@ def main() -> int:
     if not isinstance(fields, dict):
         fields = {}
 
+    recovery_result: dict = {}
+    recovery_raw_attempts: list[str] = []
     if questions and len(question_answers) < len(questions):
         print("[3.1/4] Reintento focalizado para recuperar respuestas de preguntas...")
         recovery_prompt = build_question_only_prompt(
