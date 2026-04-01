@@ -15,6 +15,8 @@ class OllamaClient:
         self.last_response_payload: dict[str, Any] = {}
         self.last_attempt_raw_responses: list[str] = []
         self.last_attempt_payloads: list[dict[str, Any]] = []
+        self.last_parse_mode: str = "none"
+        self.last_response_meta: dict[str, Any] = {}
 
     def _extract_text(self, data: dict[str, Any]) -> str:
         response_text = data.get("response")
@@ -38,6 +40,7 @@ class OllamaClient:
         try:
             parsed = json.loads(candidate)
             if isinstance(parsed, dict):
+                self.last_parse_mode = "direct_json"
                 return parsed
             raise ValueError("Model response JSON must be an object.")
         except json.JSONDecodeError:
@@ -49,6 +52,7 @@ class OllamaClient:
             fenced_content = fenced.group(1).strip()
             parsed = json.loads(fenced_content)
             if isinstance(parsed, dict):
+                self.last_parse_mode = "markdown_fence"
                 return parsed
             raise ValueError("Model response JSON must be an object.")
 
@@ -57,6 +61,7 @@ class OllamaClient:
         if match:
             parsed = json.loads(match.group(0))
             if isinstance(parsed, dict):
+                self.last_parse_mode = "regex_object"
                 return parsed
             raise ValueError("Model response JSON must be an object.")
 
@@ -93,6 +98,12 @@ class OllamaClient:
                 raise ValueError(f"Ollama error: {data['error']}")
 
             text = self._extract_text(data)
+            self.last_response_meta = {
+                "status_code": response.status_code,
+                "response_keys": sorted(data.keys()) if isinstance(data, dict) else [],
+                "response_chars": len(text),
+                "model": self.model,
+            }
             self.last_raw_response = text
             self.last_response_payload = data if isinstance(data, dict) else {}
             self.last_attempt_payloads.append(self.last_response_payload)
