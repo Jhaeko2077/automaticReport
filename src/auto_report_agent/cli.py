@@ -247,7 +247,6 @@ def main() -> int:
             questions=questions,
         )
         recovery_result = client.generate_json(recovery_prompt, temperature=0.1)
-        recovery_raw_attempts = list(client.last_attempt_raw_responses)
         debug_llm_dump(
             stage="recovery",
             payload=recovery_result,
@@ -262,20 +261,11 @@ def main() -> int:
         print_failure_diagnostics(stage="initial", payload=llm_result, raw_attempts=initial_raw_attempts)
         print_failure_diagnostics(
             stage="recovery",
-            payload=recovery_result,
-            raw_attempts=recovery_raw_attempts,
+            payload=recovery_result if "recovery_result" in locals() else {},
+            raw_attempts=client.last_attempt_raw_responses if "recovery_result" in locals() else [],
         )
-        merged_attempts = initial_raw_attempts + recovery_raw_attempts
-        fallback_payload = recovery_result if recovery_result else llm_result
-        question_answers = build_fallback_answers(
-            payload=fallback_payload,
-            expected_questions=questions,
-            raw_attempts=merged_attempts,
-        )
-        print(
-            "El modelo no devolvió respuestas de preguntas ni en el reintento focalizado. "
-            "Se generarán respuestas de respaldo con el contenido disponible."
-        )
+        print("El modelo no devolvió respuestas de preguntas ni en el reintento focalizado.")
+        return 3
 
     while len(question_answers) < len(questions):
         question_answers.append("Respuesta no generada por el modelo.")
