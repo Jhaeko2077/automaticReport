@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 
 from .doc_writer import analyze_docx, fill_docx_sections
@@ -85,6 +86,30 @@ def main() -> int:
                 preview = preview[:500] + "...(truncado)"
             print(f"[ERROR][{stage}] intento {idx} raw preview => {preview or '<vacío>'}")
 
+    def print_question_diagnostics(stage: str, payload: dict, expected_questions: list[str]) -> None:
+        if not args.debug_llm:
+            return
+
+        qa_items = payload.get("question_answers", []) if isinstance(payload, dict) else []
+        if not isinstance(qa_items, list):
+            print(f"[DEBUG][{stage}] 'question_answers' no es lista (tipo={type(qa_items).__name__}).")
+            return
+
+        print(f"[DEBUG][{stage}] question_answers detectadas: {len(qa_items)}/{len(expected_questions)}")
+        for idx, item in enumerate(qa_items, start=1):
+            if not isinstance(item, dict):
+                print(f"[DEBUG][{stage}] item[{idx}] no es objeto (tipo={type(item).__name__}).")
+                continue
+
+            incoming_question = str(item.get("question", "")).strip()
+            incoming_answer = str(item.get("answer", "")).strip()
+            preview_q = incoming_question[:120] + ("..." if len(incoming_question) > 120 else "")
+            preview_a = incoming_answer[:160] + ("..." if len(incoming_answer) > 160 else "")
+            print(
+                f"[DEBUG][{stage}] item[{idx}] question='{preview_q or '<vacía>'}' "
+                f"answer_chars={len(incoming_answer)} preview='{preview_a or '<vacía>'}'"
+            )
+
     analysis = analyze_docx(args.docx_input)
     questions = [slot.question for slot in analysis.questions]
 
@@ -158,34 +183,6 @@ def main() -> int:
         if answers:
             return answers
 
-    def extract_question_answers(payload: dict) -> list[str]:
-        answers: list[str] = []
-
-        qa_items = payload.get("question_answers", [])
-        if isinstance(qa_items, list):
-            for item in qa_items:
-                if isinstance(item, dict):
-                    answer = str(item.get("answer", "")).strip()
-                    if answer:
-                        answers.append(answer)
-                elif isinstance(item, str) and item.strip():
-                    answers.append(item.strip())
-
-        if answers:
-            return answers
-
-        alt_items = payload.get("answers", [])
-        if isinstance(alt_items, list):
-            for item in alt_items:
-                if isinstance(item, dict):
-                    answer = str(item.get("answer", "")).strip()
-                    if answer:
-                        answers.append(answer)
-                elif isinstance(item, str) and item.strip():
-                    answers.append(item.strip())
-        if answers:
-            return answers
-
         qa_map = payload.get("qa")
         if isinstance(qa_map, dict):
             for question in questions:
@@ -197,7 +194,43 @@ def main() -> int:
 
         return []
 
+    def build_fallback_answers(
+        payload: dict,
+        expected_questions: list[str],
+        raw_attempts: list[str],
+    ) -> list[str]:
+        if not expected_questions:
+            return []
+
+        payload_keys = sorted(payload.keys()) if isinstance(payload, dict) else []
+        payload_pretty = json.dumps(payload, ensure_ascii=False, indent=2) if isinstance(payload, dict) else "{}"
+
+        if len(payload_pretty) > 1200:
+            payload_pretty = payload_pretty[:1200] + "...(truncado)"
+
+        best_raw = ""
+        for item in raw_attempts:
+            if isinstance(item, str) and item.strip():
+                best_raw = item.strip()
+                break
+        if len(best_raw) > 800:
+            best_raw = best_raw[:800] + "...(truncado)"
+
+        fallback_answers: list[str] = []
+        for idx, question in enumerate(expected_questions, start=1):
+            fallback_answers.append(
+                (
+                    f"No se pudo obtener una respuesta específica y confiable para la pregunta {idx}.\n\n"
+                    f"Pregunta detectada: {question}\n\n"
+                    f"Salida real del modelo (claves): {payload_keys}\n"
+                    f"JSON devuelto por el modelo:\n{payload_pretty}\n\n"
+                    f"Texto crudo del intento:\n{best_raw or '<vacío>'}"
+                )
+            )
+        return fallback_answers
+
     question_answers = extract_question_answers(llm_result)
+    print_question_diagnostics(stage="initial", payload=llm_result, expected_questions=questions)
 
     summary = str(llm_result.get("summary", "")).strip() or None
     diagram = str(llm_result.get("diagram", "")).strip() or None
@@ -205,6 +238,8 @@ def main() -> int:
     if not isinstance(fields, dict):
         fields = {}
 
+    recovery_result: dict = {}
+    recovery_raw_attempts: list[str] = []
     if questions and len(question_answers) < len(questions):
         print("[3.1/4] Reintento focalizado para recuperar respuestas de preguntas...")
         recovery_prompt = build_question_only_prompt(
@@ -212,13 +247,35 @@ def main() -> int:
             questions=questions,
         )
         recovery_result = client.generate_json(recovery_prompt, temperature=0.1)
+        recovery_raw_attempts = list(client.last_attempt_raw_responses)
+        debug_llm_dump(
+            stage="recovery",
+            payload=recovery_result,
+            raw_text=client.last_raw_response,
+        )
+        print_question_diagnostics(stage="recovery", payload=recovery_result, expected_questions=questions)
         recovered_answers = extract_question_answers(recovery_result)
         if recovered_answers:
             question_answers = recovered_answers
 
     if questions and not question_answers:
-        print("El modelo no devolvió respuestas de preguntas ni en el reintento focalizado.")
-        return 3
+        print_failure_diagnostics(stage="initial", payload=llm_result, raw_attempts=initial_raw_attempts)
+        print_failure_diagnostics(
+            stage="recovery",
+            payload=recovery_result,
+            raw_attempts=recovery_raw_attempts,
+        )
+        merged_attempts = initial_raw_attempts + recovery_raw_attempts
+        fallback_payload = recovery_result if recovery_result else llm_result
+        question_answers = build_fallback_answers(
+            payload=fallback_payload,
+            expected_questions=questions,
+            raw_attempts=merged_attempts,
+        )
+        print(
+            "El modelo no devolvió respuestas de preguntas ni en el reintento focalizado. "
+            "Se generarán respuestas de respaldo con el contenido disponible."
+        )
 
     while len(question_answers) < len(questions):
         question_answers.append("Respuesta no generada por el modelo.")

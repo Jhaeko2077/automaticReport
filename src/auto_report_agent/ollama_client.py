@@ -14,6 +14,7 @@ class OllamaClient:
         self.last_raw_response: str = ""
         self.last_response_payload: dict[str, Any] = {}
         self.last_attempt_raw_responses: list[str] = []
+        self.last_attempt_payloads: list[dict[str, Any]] = []
 
     def _extract_text(self, data: dict[str, Any]) -> str:
         response_text = data.get("response")
@@ -81,6 +82,7 @@ class OllamaClient:
         last_error: Exception | None = None
         raw_attempts: list[str] = []
         self.last_attempt_raw_responses = []
+        self.last_attempt_payloads = []
         for attempt_prompt in attempts:
             payload = {**base_payload, "prompt": attempt_prompt}
             response = requests.post(url, json=payload, timeout=180)
@@ -93,6 +95,7 @@ class OllamaClient:
             text = self._extract_text(data)
             self.last_raw_response = text
             self.last_response_payload = data if isinstance(data, dict) else {}
+            self.last_attempt_payloads.append(self.last_response_payload)
             raw_attempts.append(text)
             self.last_attempt_raw_responses.append(text)
             try:
@@ -107,5 +110,8 @@ class OllamaClient:
         snippets = []
         for idx, raw in enumerate(raw_attempts, start=1):
             compact = raw.replace("\n", "\\n")
-            snippets.append(f"attempt_{idx}='{compact[:400]}'")
+            payload_keys = []
+            if idx - 1 < len(self.last_attempt_payloads):
+                payload_keys = sorted(self.last_attempt_payloads[idx - 1].keys())
+            snippets.append(f"attempt_{idx}[keys={payload_keys}]='{compact[:400]}'")
         raise ValueError(f"{last_error}. Raw snippets: {' | '.join(snippets)}")
