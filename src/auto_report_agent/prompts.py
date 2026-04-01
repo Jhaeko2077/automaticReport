@@ -14,8 +14,10 @@ def build_document_prompt(
     placeholders_json = json.dumps(placeholders, ensure_ascii=False, indent=2)
 
     summary_instruction = (
-        '"summary": "Escribe aquí un resumen completo del proyecto (mínimo 250 palabras). '
-        'Describe su propósito, arquitectura, tecnologías usadas y flujo principal.",'
+        '"summary": "Escribe un análisis completo del proyecto (mínimo 600 palabras). '
+        'Cubre: propósito y contexto, arquitectura y estructura de carpetas, '
+        'tecnologías y dependencias clave, flujo de datos principal, '
+        'decisiones de diseño destacables y posibles mejoras.",'
         if include_summary
         else '"summary": "",'
     )
@@ -45,8 +47,8 @@ Analiza el código fuente del repositorio y devuelve EXACTAMENTE este JSON váli
   {summary_instruction}
   {diagram_instruction}
   "question_answers": [
-    {{"question": "pregunta original 1", "answer": "respuesta técnica de 1-2 párrafos basada en el código"}},
-    {{"question": "pregunta original 2", "answer": "respuesta técnica de 1-2 párrafos basada en el código"}}
+    {{"question": "pregunta original 1", "answer": "respuesta técnica en español (mínimo 4 párrafos densos) basada en el código"}},
+    {{"question": "pregunta original 2", "answer": "respuesta técnica en español (mínimo 4 párrafos densos) basada en el código"}}
   ],
   "fields": {{
     "PLACEHOLDER_EJEMPLO": "valor completado"
@@ -56,7 +58,7 @@ Analiza el código fuente del repositorio y devuelve EXACTAMENTE este JSON váli
 EJEMPLO de respuesta correcta para una pregunta:
 {{
   "question": "¿Cómo seleccionar un dataset adecuado para un problema de Machine Learning?",
-  "answer": "Para seleccionar un dataset adecuado se deben considerar tres criterios principales: representatividad, volumen y calidad. El dataset debe reflejar con precisión el fenómeno que se desea modelar, incluyendo todos los casos borde relevantes. En cuanto al volumen, reglas empíricas sugieren al menos 10 veces más muestras que parámetros del modelo. Finalmente, la calidad implica ausencia de valores nulos excesivos, etiquetas correctas y distribución balanceada entre clases."
+  "answer": "Para seleccionar un dataset adecuado para Machine Learning se deben evaluar múltiples dimensiones de calidad. En primer lugar, la representatividad: el dataset debe cubrir todos los escenarios reales que el modelo enfrentará en producción, incluyendo casos borde y distribuciones minoritarias que suelen ser críticas para el rendimiento final.\n\nEn segundo lugar, el volumen de datos es determinante. Modelos simples como regresión logística pueden funcionar con cientos de muestras, mientras que redes neuronales profundas típicamente requieren decenas de miles o más. Una heurística común es tener al menos 10 veces más ejemplos que parámetros entrenables del modelo.\n\nEn tercer lugar, la calidad de las etiquetas y la ausencia de sesgos sistémicos. Un dataset grande pero mal etiquetado producirá un modelo sesgado de forma consistente (garbage in, garbage out). Se recomienda auditar una muestra aleatoria manualmente antes de entrenar.\n\nFinalmente, se debe considerar el balance de clases. En problemas de clasificación con clases desbalanceadas, técnicas como oversampling (SMOTE), undersampling o ajuste de class_weight son necesarias para evitar que el modelo ignore las clases minoritarias."
 }}
 
 Preguntas a responder (exactamente {n}):
@@ -136,8 +138,9 @@ PROHIBIDO ABSOLUTO:
 INSTRUCCIONES:
 1. Lee el código fuente del repositorio.
 2. Responde cada pregunta basándote exclusivamente en el código, la arquitectura y las tecnologías presentes.
-3. Cada respuesta debe tener 1-2 párrafos en español técnico y claro.
-4. Conserva el texto exacto de cada pregunta en el campo "question".
+3. Cada respuesta debe tener mínimo 4 párrafos densos en español técnico.
+4. Incluye en cada respuesta: (1) definición del concepto, (2) relación explícita con el código del repositorio, (3) justificación técnica detallada y (4) ejemplos concretos o casos de uso.
+5. Conserva el texto exacto de cada pregunta en el campo "question".
 
 El JSON de salida debe tener exactamente {n} elementos en "question_answers":
 
