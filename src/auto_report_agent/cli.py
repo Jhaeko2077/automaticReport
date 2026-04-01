@@ -85,6 +85,30 @@ def main() -> int:
                 preview = preview[:500] + "...(truncado)"
             print(f"[ERROR][{stage}] intento {idx} raw preview => {preview or '<vacío>'}")
 
+    def print_question_diagnostics(stage: str, payload: dict, expected_questions: list[str]) -> None:
+        if not args.debug_llm:
+            return
+
+        qa_items = payload.get("question_answers", []) if isinstance(payload, dict) else []
+        if not isinstance(qa_items, list):
+            print(f"[DEBUG][{stage}] 'question_answers' no es lista (tipo={type(qa_items).__name__}).")
+            return
+
+        print(f"[DEBUG][{stage}] question_answers detectadas: {len(qa_items)}/{len(expected_questions)}")
+        for idx, item in enumerate(qa_items, start=1):
+            if not isinstance(item, dict):
+                print(f"[DEBUG][{stage}] item[{idx}] no es objeto (tipo={type(item).__name__}).")
+                continue
+
+            incoming_question = str(item.get("question", "")).strip()
+            incoming_answer = str(item.get("answer", "")).strip()
+            preview_q = incoming_question[:120] + ("..." if len(incoming_question) > 120 else "")
+            preview_a = incoming_answer[:160] + ("..." if len(incoming_answer) > 160 else "")
+            print(
+                f"[DEBUG][{stage}] item[{idx}] question='{preview_q or '<vacía>'}' "
+                f"answer_chars={len(incoming_answer)} preview='{preview_a or '<vacía>'}'"
+            )
+
     analysis = analyze_docx(args.docx_input)
     questions = [slot.question for slot in analysis.questions]
 
@@ -158,34 +182,6 @@ def main() -> int:
         if answers:
             return answers
 
-    def extract_question_answers(payload: dict) -> list[str]:
-        answers: list[str] = []
-
-        qa_items = payload.get("question_answers", [])
-        if isinstance(qa_items, list):
-            for item in qa_items:
-                if isinstance(item, dict):
-                    answer = str(item.get("answer", "")).strip()
-                    if answer:
-                        answers.append(answer)
-                elif isinstance(item, str) and item.strip():
-                    answers.append(item.strip())
-
-        if answers:
-            return answers
-
-        alt_items = payload.get("answers", [])
-        if isinstance(alt_items, list):
-            for item in alt_items:
-                if isinstance(item, dict):
-                    answer = str(item.get("answer", "")).strip()
-                    if answer:
-                        answers.append(answer)
-                elif isinstance(item, str) and item.strip():
-                    answers.append(item.strip())
-        if answers:
-            return answers
-
         qa_map = payload.get("qa")
         if isinstance(qa_map, dict):
             for question in questions:
@@ -198,6 +194,7 @@ def main() -> int:
         return []
 
     question_answers = extract_question_answers(llm_result)
+    print_question_diagnostics(stage="initial", payload=llm_result, expected_questions=questions)
 
     summary = str(llm_result.get("summary", "")).strip() or None
     diagram = str(llm_result.get("diagram", "")).strip() or None
@@ -212,11 +209,23 @@ def main() -> int:
             questions=questions,
         )
         recovery_result = client.generate_json(recovery_prompt, temperature=0.1)
+        debug_llm_dump(
+            stage="recovery",
+            payload=recovery_result,
+            raw_text=client.last_raw_response,
+        )
+        print_question_diagnostics(stage="recovery", payload=recovery_result, expected_questions=questions)
         recovered_answers = extract_question_answers(recovery_result)
         if recovered_answers:
             question_answers = recovered_answers
 
     if questions and not question_answers:
+        print_failure_diagnostics(stage="initial", payload=llm_result, raw_attempts=initial_raw_attempts)
+        print_failure_diagnostics(
+            stage="recovery",
+            payload=recovery_result if "recovery_result" in locals() else {},
+            raw_attempts=client.last_attempt_raw_responses if "recovery_result" in locals() else [],
+        )
         print("El modelo no devolvió respuestas de preguntas ni en el reintento focalizado.")
         return 3
 
