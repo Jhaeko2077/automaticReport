@@ -22,8 +22,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--ollama-timeout",
         type=int,
-        default=180,
-        help="Timeout (segundos) por solicitud a Ollama antes de activar contingencia.",
+        default=300,
+        help="Timeout in seconds for Ollama responses (default: 300).",
     )
     parser.add_argument("--student-name", default="Jeicob Hiroshi Kuong Chirinos", help="Nombre completo del estudiante")
     parser.add_argument("--student-id", default="1636178", help="ID del estudiante")
