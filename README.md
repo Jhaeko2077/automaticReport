@@ -15,11 +15,13 @@
 3. Envía todo a **Ollama local** (por defecto `llama3`) y solicita:
    - respuesta para cada pregunta,
    - resumen largo y detallado del proyecto,
-   - diagrama en Mermaid.
+   - diagrama en Mermaid,
+   - y contenido para secciones del formato de Trabajo Final (datos, problemática, propuesta, cronograma, recursos, ejecución, control y valoración).
 4. Escribe el resultado en un nuevo `.docx`:
    - cada respuesta debajo de su pregunta,
    - resumen en el bloque “Resumen”,
-   - diagrama en el bloque “Diagrama”.
+   - diagrama en el bloque “Diagrama”,
+   - y completa automáticamente celdas por etiqueta (por ejemplo: "Apellidos y Nombres", "Cronograma de actividades", "Máquinas y equipos", etc.).
 2. Lee una plantilla `.docx` y detecta placeholders con formato `{{NOMBRE_CAMPO}}`.
 3. Usa **Ollama local** (por defecto modelo `llama3`) para generar contenido de cada campo.
 4. Guarda un nuevo `.docx` con los datos completos.
@@ -95,6 +97,11 @@ Opciones útiles:
 - `--debug-llm` imprime en consola claves JSON y preview de la salida cruda del modelo
 - `--debug-llm-max-chars` tamaño máximo del preview de debug en consola
 - `--debug-llm-file` guarda la respuesta cruda completa del modelo en un archivo para diagnóstico
+- `--student-name` nombre del estudiante
+- `--student-id` ID del estudiante
+- `--student-address` dirección zonal/CFP
+- `--student-career` carrera
+- `--student-course` curso o módulo formativo
 
 ---
 

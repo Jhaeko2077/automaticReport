@@ -173,6 +173,7 @@ def fill_docx_sections(
     summary: str | None,
     diagram: str | None,
     placeholder_replacements: dict[str, str] | None = None,
+    extra_sections: dict[str, str] | None = None,
 ) -> None:
     doc = Document(docx_input)
     analysis = analyze_docx(docx_input)
@@ -212,6 +213,60 @@ def fill_docx_sections(
 
                 if diagram and normalized.startswith("diagrama"):
                     cell.text = f"Diagrama\n\n{diagram.strip()}"
+
+    section_map = {
+        "apellidos y nombres": "student_name",
+        "id": "student_id",
+        "dirección zonal/cfp": "student_address",
+        "direccion zonal/cfp": "student_address",
+        "carrera": "student_career",
+        "curso/ mod. formativo": "student_course",
+        "curso/mod. formativo": "student_course",
+        "tema de trabajo final": "student_topic",
+        "identifica la problemática del caso práctico propuesto": "problem_statement",
+        "identifica propuesta de solución y evidencias": "solution_evidence",
+        "cronograma de actividades": "schedule",
+        "máquinas y equipos": "machines_equipment",
+        "maquinas y equipos": "machines_equipment",
+        "herramientas e instrumentos": "tools_instruments",
+        "materiales e insumos": "materials_supplies",
+        "propuesta de solución": "solution_proposal",
+        "operaciones / pasos / subpasos": "operations_steps",
+        "normas técnicas": "standards_safety_environment",
+        "normas tecnicas": "standards_safety_environment",
+        "dibujo / esquema / diagrama de propuesta": "textual_diagram",
+        "verificar el cumplimiento": "compliance_control",
+        "califica el impacto": "evaluation_scores",
+    }
+
+    if extra_sections:
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    raw_text = (cell.text or "").strip()
+                    if not raw_text:
+                        continue
+                    normalized = _normalize(raw_text)
+
+                    for label, key in section_map.items():
+                        if label in normalized and extra_sections.get(key):
+                            value = str(extra_sections[key]).strip()
+                            if not value:
+                                continue
+
+                            # Campos de estudiante: mantener etiqueta y completar en la misma celda.
+                            if key.startswith("student_"):
+                                first_line = raw_text.splitlines()[0].strip()
+                                if ":" in first_line:
+                                    prefix = first_line.split(":", 1)[0].strip()
+                                else:
+                                    prefix = first_line
+                                cell.text = f"{prefix}: {value}"
+                            else:
+                                # Secciones amplias: mantener encabezado y añadir contenido.
+                                if value not in raw_text:
+                                    cell.text = f"{raw_text}\n\n{value}"
+                            break
 
     output_path = Path(docx_output)
     output_path.parent.mkdir(parents=True, exist_ok=True)

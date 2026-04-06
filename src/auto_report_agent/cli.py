@@ -19,6 +19,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--docx-output", required=True, help="Ruta del DOCX de salida")
     parser.add_argument("--model", default="llama3", help="Modelo en Ollama (default: llama3)")
     parser.add_argument("--ollama-url", default="http://localhost:11434", help="URL base de Ollama")
+    parser.add_argument("--student-name", default="Jeicob Hiroshi Kuong Chirinos", help="Nombre completo del estudiante")
+    parser.add_argument("--student-id", default="1636178", help="ID del estudiante")
+    parser.add_argument("--student-address", default="zonal AREQUIPA/PUNO", help="Dirección Zonal/CFP")
+    parser.add_argument(
+        "--student-career",
+        default="Ingeniería de Software con Inteligencia Artificial",
+        help="Carrera del estudiante",
+    )
+    parser.add_argument(
+        "--student-course",
+        default="FUNDAMENTOS Y ALGORITMIA PARA INTELIGENCIA ARTIFICIAL",
+        help="Curso o módulo formativo",
+    )
     parser.add_argument("--max-files", type=int, default=25, help="Cantidad máxima de archivos de muestra")
     parser.add_argument(
         "--max-file-chars",
@@ -144,6 +157,13 @@ def main() -> int:
         include_summary=analysis.has_summary_section,
         include_diagram=analysis.has_diagram_section,
         placeholders=analysis.placeholders,
+        student_profile={
+            "student_name": args.student_name,
+            "student_id": args.student_id,
+            "student_address": args.student_address,
+            "student_career": args.student_career,
+            "student_course": args.student_course,
+        },
     )
 
     client = OllamaClient(base_url=args.ollama_url, model=args.model)
@@ -253,6 +273,17 @@ def main() -> int:
     if not isinstance(fields, dict):
         fields = {}
 
+    sections = llm_result.get("sections", {})
+    if not isinstance(sections, dict):
+        sections = {}
+
+    # Fallback explícito para no perder datos de estudiante si el modelo no los devuelve.
+    sections.setdefault("student_name", args.student_name)
+    sections.setdefault("student_id", args.student_id)
+    sections.setdefault("student_address", args.student_address)
+    sections.setdefault("student_career", args.student_career)
+    sections.setdefault("student_course", args.student_course)
+
     recovery_result: dict = {}
     recovery_raw_attempts: list[str] = []
     if questions and len(question_answers) < len(questions):
@@ -315,6 +346,7 @@ def main() -> int:
         summary=summary,
         diagram=diagram,
         placeholder_replacements=placeholder_replacements,
+        extra_sections=sections,
     )
 
     print(f"[4/4] Documento generado: {args.docx_output}")
