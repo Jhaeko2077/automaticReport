@@ -15,10 +15,13 @@ def build_document_prompt(
     placeholders_json = json.dumps(placeholders, ensure_ascii=False, indent=2)
 
     summary_instruction = (
-        '"summary": "Escribe una propuesta de solución completa (mínimo 600 palabras). '
-        'No la enfoques como resumen. Debe proponer cómo resolver el caso práctico: '
-        'objetivo técnico, estrategia de implementación, flujo de trabajo, '
-        'herramientas/tecnologías a usar, evidencias esperadas y mejoras posteriores.",'
+        '"summary": "Escribe una propuesta de solución completa (mínimo 800 palabras) en español, '
+        'con redacción clara, profesional y persuasiva. Debe presentar el repositorio analizado como '
+        'una solución técnica integral, explicando de forma amplia y ordenada: (1) contexto y problema '
+        'que aborda, (2) arquitectura y componentes principales del proyecto, (3) flujo de ejecución del agente, '
+        '(4) tecnologías y por qué fueron elegidas, (5) valor práctico para el usuario/negocio, '
+        '(6) plan de implementación o mejora continua y (7) resultados/evidencias esperadas. '
+        'No la enfoques como un simple resumen; debe sonar a propuesta formal de solución basada en el código real.",'
         if include_summary
         else '"summary": "",'
     )

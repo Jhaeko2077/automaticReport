@@ -142,7 +142,12 @@ def analyze_docx(docx_path: str) -> DocAnalysis:
                     placeholders.setdefault(key, text)
 
                 normalized = _normalize(text)
-                if normalized.startswith("resumen") or normalized.startswith("propuesta de solución") or normalized.startswith("propuesta de solucion"):
+                if (
+                    normalized.startswith("resumen")
+                    or normalized.startswith("propuesta")
+                    or normalized.startswith("propuesta de solución")
+                    or normalized.startswith("propuesta de solucion")
+                ):
                     has_summary_section = True
                 if normalized.startswith("diagrama"):
                     has_diagram_section = True
@@ -382,6 +387,7 @@ def fill_docx_sections(
 
                 if summary and (
                     normalized.startswith("resumen")
+                    or normalized.startswith("propuesta")
                     or normalized.startswith("propuesta de solución")
                     or normalized.startswith("propuesta de solucion")
                 ):
