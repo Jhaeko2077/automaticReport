@@ -202,6 +202,112 @@ def fill_docx_template(docx_input: str, docx_output: str, replacements: dict[str
     doc.save(output_path)
 
 
+def _split_non_empty_lines(value: str) -> list[str]:
+    return [line.strip(" -\t") for line in value.splitlines() if line.strip(" -\t")]
+
+
+def _find_first_empty_row(table, start_idx: int = 0) -> int | None:
+    for row_idx in range(max(0, start_idx), len(table.rows)):
+        row = table.rows[row_idx]
+        if all(not (cell.text or "").strip() for cell in row.cells):
+            return row_idx
+    return None
+
+
+def _table_contains_label(table, label: str) -> bool:
+    normalized_label = _normalize(label)
+    for row in table.rows:
+        for cell in row.cells:
+            if normalized_label in _normalize(cell.text or ""):
+                return True
+    return False
+
+
+def _build_resource_items(raw_value: str) -> list[tuple[str, str]]:
+    items: list[tuple[str, str]] = []
+    for line in _split_non_empty_lines(raw_value):
+        if "|" in line:
+            left, right = line.split("|", 1)
+            items.append((left.strip(), right.strip()))
+            continue
+
+        qty_match = re.match(r"^(.*?)(?:\s*[:\-]\s*|\s*\()\s*(\d+)\)?\s*$", line)
+        if qty_match:
+            items.append((qty_match.group(1).strip(), qty_match.group(2).strip()))
+        else:
+            items.append((line.strip(), "1"))
+    return items
+
+
+def _fill_resource_table(table, raw_value: str) -> bool:
+    items = _build_resource_items(raw_value)
+    if not items:
+        return False
+
+    start_row = _find_first_empty_row(table, start_idx=1)
+    if start_row is None:
+        return False
+
+    max_rows = len(table.rows) - start_row
+    for offset, (description, quantity) in enumerate(items[:max_rows]):
+        row = table.rows[start_row + offset]
+        if len(row.cells) >= 1:
+            row.cells[0].text = description
+        if len(row.cells) >= 2:
+            row.cells[1].text = quantity
+    return True
+
+
+def _fill_schedule_table(table, raw_value: str) -> bool:
+    activities = _split_non_empty_lines(raw_value)
+    if not activities:
+        return False
+
+    start_row = _find_first_empty_row(table, start_idx=2)
+    if start_row is None:
+        return False
+
+    for idx, activity in enumerate(activities):
+        row_idx = start_row + idx
+        if row_idx >= len(table.rows):
+            break
+        row = table.rows[row_idx]
+        col_count = len(row.cells)
+        if col_count < 2:
+            continue
+
+        row.cells[0].text = str(idx + 1)
+        row.cells[1].text = activity
+
+        # Marca de cronograma rotativa sobre las columnas disponibles.
+        if col_count > 2:
+            mark_col = 2 + (idx % (col_count - 2))
+            row.cells[mark_col].text = "X"
+    return True
+
+
+def _fill_execution_table(table, operations: str, standards: str) -> bool:
+    op_lines = _split_non_empty_lines(operations)
+    std_lines = _split_non_empty_lines(standards)
+    if not op_lines and not std_lines:
+        return False
+
+    start_row = _find_first_empty_row(table, start_idx=1)
+    if start_row is None:
+        return False
+
+    target_rows = len(table.rows) - start_row
+    total_lines = min(target_rows, max(len(op_lines), len(std_lines)))
+
+    for idx in range(total_lines):
+        row = table.rows[start_row + idx]
+        if len(row.cells) >= 1:
+            row.cells[0].text = op_lines[idx] if idx < len(op_lines) else ""
+        if len(row.cells) >= 2:
+            row.cells[1].text = std_lines[idx] if idx < len(std_lines) else ""
+    return True
+
+
 def fill_docx_sections(
     docx_input: str,
     docx_output: str,
@@ -276,6 +382,23 @@ def fill_docx_sections(
     }
 
     if extra_sections:
+        # Intento prioritario: rellenar tablas de "cuadros" por filas y columnas.
+        for table in doc.tables:
+            if _table_contains_label(table, "cronograma de actividades"):
+                _fill_schedule_table(table, str(extra_sections.get("schedule", "")).strip())
+            elif _table_contains_label(table, "máquinas y equipos") or _table_contains_label(table, "maquinas y equipos"):
+                _fill_resource_table(table, str(extra_sections.get("machines_equipment", "")).strip())
+            elif _table_contains_label(table, "herramientas e instrumentos"):
+                _fill_resource_table(table, str(extra_sections.get("tools_instruments", "")).strip())
+            elif _table_contains_label(table, "materiales e insumos"):
+                _fill_resource_table(table, str(extra_sections.get("materials_supplies", "")).strip())
+            elif _table_contains_label(table, "operaciones / pasos / subpasos"):
+                _fill_execution_table(
+                    table,
+                    str(extra_sections.get("operations_steps", "")).strip(),
+                    str(extra_sections.get("standards_safety_environment", "")).strip(),
+                )
+
         for table in doc.tables:
             for row in table.rows:
                 for cell in row.cells:
