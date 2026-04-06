@@ -104,8 +104,6 @@ Opciones útiles:
 - `--student-career` carrera
 - `--student-course` curso o módulo formativo
 
-Si Ollama no responde en el tiempo configurado, el agente aplica un modo de contingencia para no abortar el proceso y generar igualmente un DOCX completo (con mensajes de advertencia para reintentar luego con más tiempo).
-
 ---
 
 ## Guía paso a paso para que te funcione en local

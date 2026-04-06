@@ -255,7 +255,7 @@ def fill_docx_sections(
                     normalized = _normalize(raw_text)
 
                     for label, key in section_map.items():
-                        if _label_matches_cell(label, normalized, key) and extra_sections.get(key):
+                        if label in normalized and extra_sections.get(key):
                             value = str(extra_sections[key]).strip()
                             if not value:
                                 continue

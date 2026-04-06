@@ -19,12 +19,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--docx-output", required=True, help="Ruta del DOCX de salida")
     parser.add_argument("--model", default="llama3", help="Modelo en Ollama (default: llama3)")
     parser.add_argument("--ollama-url", default="http://localhost:11434", help="URL base de Ollama")
-    parser.add_argument(
-        "--ollama-timeout",
-        type=int,
-        default=180,
-        help="Timeout de lectura para cada solicitud a Ollama en segundos.",
-    )
     parser.add_argument("--student-name", default="Jeicob Hiroshi Kuong Chirinos", help="Nombre completo del estudiante")
     parser.add_argument("--student-id", default="1636178", help="ID del estudiante")
     parser.add_argument("--student-address", default="zonal AREQUIPA/PUNO", help="Dirección Zonal/CFP")
