@@ -10,6 +10,48 @@ from .prompts import build_document_prompt, build_question_only_prompt
 from .repo_analyzer import build_repo_context
 
 
+PREDEFINED_SCHEDULE = """01|Lectura del caso practico
+02|Análisis de la propuesta de solución
+03|Prototipo
+04|Probar Prototipo
+05|Implementar las mejoras
+06|Propuesta final y entrega"""
+
+PREDEFINED_MACHINES_EQUIPMENT = """Laptop | 1
+Teclado | 1
+Mouse | 1
+PosaLaptop | 1"""
+
+PREDEFINED_TOOLS_INSTRUMENTS = """Colab Google | 1
+Opera GX | 1
+Notas | 1"""
+
+PREDEFINED_MATERIALS_SUPPLIES = """Cuaderno | 1
+Lapicero | 2"""
+
+PREDEFINED_OPERATIONS_STEPS = """1. Preparación de Datos y Entorno
+1.1 Iniciar Google Colab manteniendo una postura ergonómica correcta.
+1.2 Crear y subir los datasets datos_financieros.csv y opiniones_financieras.csv.
+2. Desarrollo del Modelo Predictivo (Datos Tabulares)
+2.1 Importar Pandas y extraer los datos financieros desde el archivo CSV.
+2.2 Entrenar el modelo DecisionTreeClassifier de Scikit-learn (Split 70/30).
+3. Desarrollo del Modelo de Análisis de Sentimientos (NLP)
+3.1 Instalar SpaCy, cargar modelo en español y extraer opiniones del CSV.
+3.2 Limpiar textos, vectorizar (TfidfVectorizer) y entrenar el modelo MultinomialNB.
+4. Finalización y Documentación
+4.1 Ejecutar pruebas, validar resultados y generar el enlace público de Colab.
+4.2 Llenar el formato oficial, guardar el archivo y apagar el equipo."""
+
+PREDEFINED_STANDARDS_SAFETY_ENVIRONMENT = """SHI: Ergonomía visual y postural frente al monitor.
+Seguridad: Verificación de integridad de los datos estructurados.
+Norma Técnica: Estándar de validación para evitar el sobreajuste (overfitting).
+Norma Técnica: Estándar de validación para evitar el sobreajuste (overfitting).
+Norma Técnica: Guía de estilo para código en Python (PEP 8).
+Calidad: Estandarización en el preprocesamiento de texto para IA.
+Seguridad: Configuración correcta de permisos de lectura (Access Control).
+Medio Ambiente: Ahorro de energía al finalizar (Green Computing)."""
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Completa una plantilla DOCX analizando un repositorio con Ollama local."
@@ -190,13 +232,13 @@ def main() -> int:
                 "student_topic": "Automatización inteligente de reportes técnicos con análisis de repositorios",
                 "problem_statement": "Se requiere completar un formato de Trabajo Final a partir del análisis de un repositorio, evitando omisiones y manteniendo consistencia académica.",
                 "solution_evidence": "Se implementó un agente que analiza estructura y código del repositorio, consulta un LLM local y escribe en celdas del DOCX por preguntas, resumen, diagrama y secciones clave.",
-                "schedule": "Semana 1: análisis de requerimientos\nSemana 2: desarrollo de extracción DOCX\nSemana 3: integración con Ollama\nSemana 4: validación y ajustes",
-                "machines_equipment": "Laptop/PC (1)\nConexión de red (1)",
-                "tools_instruments": "Python 3.10+ (1)\nOllama local (1)\nEditor de código (1)",
-                "materials_supplies": "Plantilla DOCX (1)\nRepositorio objetivo (1)",
+                "schedule": PREDEFINED_SCHEDULE,
+                "machines_equipment": PREDEFINED_MACHINES_EQUIPMENT,
+                "tools_instruments": PREDEFINED_TOOLS_INSTRUMENTS,
+                "materials_supplies": PREDEFINED_MATERIALS_SUPPLIES,
                 "solution_proposal": "Usar un flujo automatizado de análisis + generación para completar el formato sin alterar el progreso ya alcanzado del proyecto.",
-                "operations_steps": "1) Leer plantilla DOCX\n2) Detectar preguntas y secciones\n3) Analizar repositorio\n4) Generar contenido\n5) Rellenar documento\n6) Verificar salida",
-                "standards_safety_environment": "Aplicar buenas prácticas de codificación, control de errores, respaldo de archivos y uso eficiente de recursos computacionales.",
+                "operations_steps": PREDEFINED_OPERATIONS_STEPS,
+                "standards_safety_environment": PREDEFINED_STANDARDS_SAFETY_ENVIRONMENT,
                 "textual_diagram": "Entrada (Repositorio + Plantilla) -> Análisis -> Generación de contenido -> Escritura DOCX -> Validación",
                 "compliance_control": "Cumple parcialmente en modo contingencia; se requiere nueva ejecución con Ollama estable para evidencia técnica completa.",
                 "evaluation_scores": "Identificación del problema: 3/3\nRelevancia de la solución: 8/8\nViabilidad técnica: 5/6\nCumplimiento de normas: 3/3\nTotal estimado: 19/20",
@@ -431,30 +473,12 @@ def main() -> int:
     sections.setdefault("student_address", args.student_address)
     sections.setdefault("student_career", args.student_career)
     sections.setdefault("student_course", args.student_course)
-    sections.setdefault(
-        "schedule",
-        "Levantamiento de requerimientos\nDiseño de arquitectura\nImplementación del agente\nPruebas funcionales\nAjustes finales y documentación",
-    )
-    sections.setdefault(
-        "machines_equipment",
-        "Laptop de desarrollo | 1\nEquipo de pruebas | 1",
-    )
-    sections.setdefault(
-        "tools_instruments",
-        "Python 3.10+ | 1\nOllama local | 1\nVisual Studio Code | 1",
-    )
-    sections.setdefault(
-        "materials_supplies",
-        "Plantilla DOCX | 1\nRepositorio fuente | 1",
-    )
-    sections.setdefault(
-        "operations_steps",
-        "Analizar estructura del repositorio\nDetectar preguntas y secciones DOCX\nGenerar contenido con modelo local\nRellenar secciones y cuadros\nValidar consistencia del documento",
-    )
-    sections.setdefault(
-        "standards_safety_environment",
-        "Buenas prácticas de codificación y revisión\nControl de calidad de respuestas\nRespaldo de archivos de entrada/salida\nUso responsable de recursos de cómputo\nTrazabilidad de cambios y validación final",
-    )
+    sections["schedule"] = PREDEFINED_SCHEDULE
+    sections["machines_equipment"] = PREDEFINED_MACHINES_EQUIPMENT
+    sections["tools_instruments"] = PREDEFINED_TOOLS_INSTRUMENTS
+    sections["materials_supplies"] = PREDEFINED_MATERIALS_SUPPLIES
+    sections["operations_steps"] = PREDEFINED_OPERATIONS_STEPS
+    sections["standards_safety_environment"] = PREDEFINED_STANDARDS_SAFETY_ENVIRONMENT
 
     recovery_result: dict = {}
     recovery_raw_attempts: list[str] = []

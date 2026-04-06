@@ -15,10 +15,10 @@ def build_document_prompt(
     placeholders_json = json.dumps(placeholders, ensure_ascii=False, indent=2)
 
     summary_instruction = (
-        '"summary": "Escribe un análisis completo del proyecto (mínimo 600 palabras). '
-        'Cubre: propósito y contexto, arquitectura y estructura de carpetas, '
-        'tecnologías y dependencias clave, flujo de datos principal, '
-        'decisiones de diseño destacables y posibles mejoras.",'
+        '"summary": "Escribe una propuesta de solución completa (mínimo 600 palabras). '
+        'No la enfoques como resumen. Debe proponer cómo resolver el caso práctico: '
+        'objetivo técnico, estrategia de implementación, flujo de trabajo, '
+        'herramientas/tecnologías a usar, evidencias esperadas y mejoras posteriores.",'
         if include_summary
         else '"summary": "",'
     )
