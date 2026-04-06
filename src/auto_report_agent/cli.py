@@ -431,6 +431,30 @@ def main() -> int:
     sections.setdefault("student_address", args.student_address)
     sections.setdefault("student_career", args.student_career)
     sections.setdefault("student_course", args.student_course)
+    sections.setdefault(
+        "schedule",
+        "Levantamiento de requerimientos\nDiseño de arquitectura\nImplementación del agente\nPruebas funcionales\nAjustes finales y documentación",
+    )
+    sections.setdefault(
+        "machines_equipment",
+        "Laptop de desarrollo | 1\nEquipo de pruebas | 1",
+    )
+    sections.setdefault(
+        "tools_instruments",
+        "Python 3.10+ | 1\nOllama local | 1\nVisual Studio Code | 1",
+    )
+    sections.setdefault(
+        "materials_supplies",
+        "Plantilla DOCX | 1\nRepositorio fuente | 1",
+    )
+    sections.setdefault(
+        "operations_steps",
+        "Analizar estructura del repositorio\nDetectar preguntas y secciones DOCX\nGenerar contenido con modelo local\nRellenar secciones y cuadros\nValidar consistencia del documento",
+    )
+    sections.setdefault(
+        "standards_safety_environment",
+        "Buenas prácticas de codificación y revisión\nControl de calidad de respuestas\nRespaldo de archivos de entrada/salida\nUso responsable de recursos de cómputo\nTrazabilidad de cambios y validación final",
+    )
 
     recovery_result: dict = {}
     recovery_raw_attempts: list[str] = []
