@@ -33,8 +33,38 @@ def _normalize(text: str) -> str:
 
 def _label_matches_cell(label: str, normalized_text: str, key: str) -> bool:
     if key == "student_id":
-        return normalized_text.startswith("id:") or normalized_text == "id"
+        compact = normalized_text.replace(" ", "")
+        return compact in {"id", "id:", "id."}
     return label in normalized_text
+
+
+def _replace_student_line(raw_text: str, value: str, key: str) -> str:
+    lines = raw_text.splitlines()
+    if not lines:
+        return raw_text
+
+    for idx, line in enumerate(lines):
+        normalized = _normalize(line)
+        for label, mapped_key in {
+            "apellidos y nombres": "student_name",
+            "id": "student_id",
+            "dirección zonal/cfp": "student_address",
+            "direccion zonal/cfp": "student_address",
+            "carrera": "student_career",
+            "curso/ mod. formativo": "student_course",
+            "curso/mod. formativo": "student_course",
+            "tema de trabajo final": "student_topic",
+        }.items():
+            if mapped_key != key:
+                continue
+            if not _label_matches_cell(label, normalized, key):
+                continue
+
+            prefix = line.split(":", 1)[0].strip() if ":" in line else line.strip()
+            lines[idx] = f"{prefix}: {value}"
+            return "\n".join(lines)
+
+    return raw_text
 
 
 def _strip_question_label(text: str) -> str:
@@ -255,19 +285,19 @@ def fill_docx_sections(
                     normalized = _normalize(raw_text)
 
                     for label, key in section_map.items():
-                        if label in normalized and extra_sections.get(key):
+                        if not _label_matches_cell(label, normalized, key):
+                            continue
+                        if extra_sections.get(key):
                             value = str(extra_sections[key]).strip()
                             if not value:
                                 continue
 
-                            # Campos de estudiante: mantener etiqueta y completar en la misma celda.
+                            # Campos de estudiante: reemplazar solo la línea correspondiente
+                            # para no destruir el formato de celdas con múltiples líneas.
                             if key.startswith("student_"):
-                                first_line = raw_text.splitlines()[0].strip()
-                                if ":" in first_line:
-                                    prefix = first_line.split(":", 1)[0].strip()
-                                else:
-                                    prefix = first_line
-                                cell.text = f"{prefix}: {value}"
+                                updated = _replace_student_line(raw_text, value, key)
+                                if updated != raw_text:
+                                    cell.text = updated
                             else:
                                 # Secciones amplias: mantener encabezado y añadir contenido.
                                 if value not in raw_text:
