@@ -223,6 +223,21 @@ def _table_contains_label(table, label: str) -> bool:
     return False
 
 
+def _table_text(table) -> str:
+    parts: list[str] = []
+    for row in table.rows:
+        for cell in row.cells:
+            text = _normalize(cell.text or "")
+            if text:
+                parts.append(text)
+    return " ".join(parts)
+
+
+def _table_has_all_tokens(table, tokens: list[str]) -> bool:
+    text = _table_text(table)
+    return all(token in text for token in tokens)
+
+
 def _build_resource_items(raw_value: str) -> list[tuple[str, str]]:
     items: list[tuple[str, str]] = []
     for line in _split_non_empty_lines(raw_value):
@@ -259,7 +274,22 @@ def _fill_resource_table(table, raw_value: str) -> bool:
 
 
 def _fill_schedule_table(table, raw_value: str) -> bool:
-    activities = _split_non_empty_lines(raw_value)
+    activities = []
+    for line in _split_non_empty_lines(raw_value):
+        normalized = _normalize(line).replace(" ", "")
+        # Evita líneas decorativas de tablas markdown: | --- | --- |
+        if normalized and set(normalized).issubset({"|", "-"}):
+            continue
+
+        cleaned = line
+        if "|" in line:
+            parts = [part.strip() for part in line.split("|") if part.strip()]
+            if not parts:
+                continue
+            # Priorizamos columna de actividad cuando viene "N° | Actividad | Semana".
+            cleaned = parts[1] if len(parts) >= 2 else parts[0]
+        activities.append(cleaned)
+
     if not activities:
         return False
 
@@ -384,7 +414,9 @@ def fill_docx_sections(
     if extra_sections:
         # Intento prioritario: rellenar tablas de "cuadros" por filas y columnas.
         for table in doc.tables:
-            if _table_contains_label(table, "cronograma de actividades"):
+            if _table_contains_label(table, "cronograma de actividades") or _table_has_all_tokens(
+                table, ["actividades", "cronograma"]
+            ):
                 _fill_schedule_table(table, str(extra_sections.get("schedule", "")).strip())
             elif _table_contains_label(table, "máquinas y equipos") or _table_contains_label(table, "maquinas y equipos"):
                 _fill_resource_table(table, str(extra_sections.get("machines_equipment", "")).strip())
@@ -392,7 +424,9 @@ def fill_docx_sections(
                 _fill_resource_table(table, str(extra_sections.get("tools_instruments", "")).strip())
             elif _table_contains_label(table, "materiales e insumos"):
                 _fill_resource_table(table, str(extra_sections.get("materials_supplies", "")).strip())
-            elif _table_contains_label(table, "operaciones / pasos / subpasos"):
+            elif _table_contains_label(table, "operaciones / pasos / subpasos") or _table_has_all_tokens(
+                table, ["operaciones", "subpasos", "normas técnicas"]
+            ) or _table_has_all_tokens(table, ["operaciones", "subpasos", "normas tecnicas"]):
                 _fill_execution_table(
                     table,
                     str(extra_sections.get("operations_steps", "")).strip(),
