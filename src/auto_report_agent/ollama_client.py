@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 import requests
+from requests.exceptions import ReadTimeout, RequestException
 
 
 class OllamaClient:
@@ -67,7 +68,13 @@ class OllamaClient:
 
         raise json.JSONDecodeError("no JSON object found", candidate, 0)
 
-    def generate_json(self, prompt: str, temperature: float = 0.2) -> dict[str, Any]:
+    def generate_json(
+        self,
+        prompt: str,
+        temperature: float = 0.2,
+        timeout_seconds: int = 180,
+        num_predict: int = 2200,
+    ) -> dict[str, Any]:
         url = f"{self.base_url}/api/generate"
         base_payload = {
             "model": self.model,
@@ -76,7 +83,7 @@ class OllamaClient:
             "options": {
                 "temperature": temperature,
                 "top_p": 0.9,
-                "num_predict": 4096,
+                "num_predict": num_predict,
             },
         }
 
@@ -88,13 +95,31 @@ class OllamaClient:
 
         last_error: Exception | None = None
         raw_attempts: list[str] = []
+        request_errors: list[str] = []
         self.last_attempt_raw_responses = []
         self.last_attempt_payloads = []
         for attempt_prompt in attempts:
             payload = {**base_payload, "prompt": attempt_prompt}
-            response = requests.post(url, json=payload, timeout=180)
-            response.raise_for_status()
-            data = response.json()
+            data: dict[str, Any] | None = None
+            response = None
+
+            # Reintento de red para evitar fallas por timeout de lectura en modelos locales lentos.
+            for request_timeout in (timeout_seconds, int(timeout_seconds * 1.5)):
+                try:
+                    response = requests.post(url, json=payload, timeout=request_timeout)
+                    response.raise_for_status()
+                    data = response.json()
+                    break
+                except ReadTimeout as exc:
+                    request_errors.append(f"timeout={request_timeout}s ({exc})")
+                    last_error = exc
+                except RequestException as exc:
+                    request_errors.append(str(exc))
+                    last_error = exc
+                    break
+
+            if data is None:
+                continue
 
             if "error" in data:
                 raise ValueError(f"Ollama error: {data['error']}")
@@ -127,4 +152,7 @@ class OllamaClient:
             if idx - 1 < len(self.last_attempt_payloads):
                 payload_keys = sorted(self.last_attempt_payloads[idx - 1].keys())
             snippets.append(f"attempt_{idx}[keys={payload_keys}]='{compact[:400]}'")
-        raise ValueError(f"{last_error}. Raw snippets: {' | '.join(snippets)}")
+        network_context = ""
+        if request_errors:
+            network_context = f" Request errors: {' | '.join(request_errors[:3])}."
+        raise ValueError(f"{last_error}.{network_context} Raw snippets: {' | '.join(snippets)}")
