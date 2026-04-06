@@ -223,21 +223,6 @@ def _table_contains_label(table, label: str) -> bool:
     return False
 
 
-def _table_contains_any_label(table, labels: list[str]) -> bool:
-    return any(_table_contains_label(table, label) for label in labels)
-
-
-def _find_data_start_row(table, min_columns: int = 2, start_idx: int = 0) -> int | None:
-    for row_idx in range(max(0, start_idx), len(table.rows)):
-        row = table.rows[row_idx]
-        if len(row.cells) < min_columns:
-            continue
-        first_two_empty = all(not (row.cells[col].text or "").strip() for col in range(min(2, len(row.cells))))
-        if first_two_empty:
-            return row_idx
-    return _find_first_empty_row(table, start_idx=start_idx)
-
-
 def _build_resource_items(raw_value: str) -> list[tuple[str, str]]:
     items: list[tuple[str, str]] = []
     for line in _split_non_empty_lines(raw_value):
@@ -259,7 +244,7 @@ def _fill_resource_table(table, raw_value: str) -> bool:
     if not items:
         return False
 
-    start_row = _find_data_start_row(table, min_columns=2, start_idx=1)
+    start_row = _find_first_empty_row(table, start_idx=1)
     if start_row is None:
         return False
 
@@ -278,7 +263,7 @@ def _fill_schedule_table(table, raw_value: str) -> bool:
     if not activities:
         return False
 
-    start_row = _find_data_start_row(table, min_columns=2, start_idx=2)
+    start_row = _find_first_empty_row(table, start_idx=2)
     if start_row is None:
         return False
 
@@ -307,7 +292,7 @@ def _fill_execution_table(table, operations: str, standards: str) -> bool:
     if not op_lines and not std_lines:
         return False
 
-    start_row = _find_data_start_row(table, min_columns=2, start_idx=1)
+    start_row = _find_first_empty_row(table, start_idx=1)
     if start_row is None:
         return False
 
@@ -399,18 +384,15 @@ def fill_docx_sections(
     if extra_sections:
         # Intento prioritario: rellenar tablas de "cuadros" por filas y columnas.
         for table in doc.tables:
-            if _table_contains_any_label(table, ["cronograma de actividades", "actividades", "cronograma"]):
+            if _table_contains_label(table, "cronograma de actividades"):
                 _fill_schedule_table(table, str(extra_sections.get("schedule", "")).strip())
-            elif _table_contains_any_label(table, ["máquinas y equipos", "maquinas y equipos"]):
+            elif _table_contains_label(table, "máquinas y equipos") or _table_contains_label(table, "maquinas y equipos"):
                 _fill_resource_table(table, str(extra_sections.get("machines_equipment", "")).strip())
             elif _table_contains_label(table, "herramientas e instrumentos"):
                 _fill_resource_table(table, str(extra_sections.get("tools_instruments", "")).strip())
             elif _table_contains_label(table, "materiales e insumos"):
                 _fill_resource_table(table, str(extra_sections.get("materials_supplies", "")).strip())
-            elif _table_contains_any_label(
-                table,
-                ["operaciones / pasos / subpasos", "operaciones", "normas técnicas", "normas tecnicas"],
-            ):
+            elif _table_contains_label(table, "operaciones / pasos / subpasos"):
                 _fill_execution_table(
                     table,
                     str(extra_sections.get("operations_steps", "")).strip(),
