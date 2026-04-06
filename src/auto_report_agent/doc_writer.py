@@ -222,6 +222,7 @@ def fill_docx_sections(
 
     section_map = {
         "apellidos y nombres": "student_name",
+        "id": "student_id",
         "dirección zonal/cfp": "student_address",
         "direccion zonal/cfp": "student_address",
         "carrera": "student_career",
@@ -245,25 +246,6 @@ def fill_docx_sections(
     }
 
     if extra_sections:
-        # Completar ID en la primera celda explícita "ID:" para evitar falsos positivos
-        # o propagación en celdas combinadas fuera del bloque de datos del estudiante.
-        student_id_value = str(extra_sections.get("student_id", "")).strip()
-        if student_id_value:
-            id_written = False
-            for table in doc.tables:
-                for row in table.rows:
-                    for cell in row.cells:
-                        raw_text = (cell.text or "").strip()
-                        normalized = _normalize(raw_text)
-                        if normalized in {"id", "id:"}:
-                            cell.text = f"ID: {student_id_value}"
-                            id_written = True
-                            break
-                    if id_written:
-                        break
-                if id_written:
-                    break
-
         for table in doc.tables:
             for row in table.rows:
                 for cell in row.cells:
@@ -271,11 +253,9 @@ def fill_docx_sections(
                     if not raw_text:
                         continue
                     normalized = _normalize(raw_text)
-                    if "pregunta" in normalized:
-                        continue
 
                     for label, key in section_map.items():
-                        if _label_matches_cell(label, normalized, key) and extra_sections.get(key):
+                        if label in normalized and extra_sections.get(key):
                             value = str(extra_sections[key]).strip()
                             if not value:
                                 continue
