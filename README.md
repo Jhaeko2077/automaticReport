@@ -90,6 +90,7 @@ python -m auto_report_agent.cli \
 Opciones útiles:
 
 - `--ollama-url` (default: `http://localhost:11434`)
+- `--ollama-timeout` timeout por solicitud a Ollama (segundos)
 - `--max-files` cantidad de archivos para muestrear
 - `--max-file-chars` caracteres por archivo
 - `--commit-limit` cantidad de commits recientes

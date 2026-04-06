@@ -31,6 +31,12 @@ def _normalize(text: str) -> str:
     return " ".join(text.split()).strip().lower()
 
 
+def _label_matches_cell(label: str, normalized_text: str, key: str) -> bool:
+    if key == "student_id":
+        return normalized_text.startswith("id:") or normalized_text == "id"
+    return label in normalized_text
+
+
 def _strip_question_label(text: str) -> str:
     return QUESTION_RE.sub("", text).strip()
 
