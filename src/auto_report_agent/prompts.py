@@ -9,6 +9,7 @@ def build_document_prompt(
     include_summary: bool,
     include_diagram: bool,
     placeholders: dict[str, str],
+    student_profile: dict[str, str] | None = None,
 ) -> str:
     questions_json = json.dumps(questions, ensure_ascii=False, indent=2)
     placeholders_json = json.dumps(placeholders, ensure_ascii=False, indent=2)
@@ -30,6 +31,7 @@ def build_document_prompt(
     )
 
     n = len(questions)
+    student_profile_json = json.dumps(student_profile or {}, ensure_ascii=False, indent=2)
 
     return f"""Eres un arquitecto de software senior. Tu única tarea es analizar el código fuente de un repositorio y responder preguntas técnicas sobre él.
 
@@ -52,6 +54,26 @@ Analiza el código fuente del repositorio y devuelve EXACTAMENTE este JSON váli
   ],
   "fields": {{
     "PLACEHOLDER_EJEMPLO": "valor completado"
+  }},
+  "sections": {{
+    "student_name": "nombre completo del estudiante",
+    "student_id": "id del estudiante",
+    "student_address": "dirección zonal/cfp",
+    "student_career": "carrera",
+    "student_course": "curso o módulo formativo",
+    "student_topic": "tema del trabajo final (debe derivarse del repositorio)",
+    "problem_statement": "problemática del caso práctico",
+    "solution_evidence": "propuesta de solución y evidencias",
+    "schedule": "cronograma de actividades en texto tabular",
+    "machines_equipment": "máquinas y equipos con cantidades",
+    "tools_instruments": "herramientas e instrumentos con cantidades",
+    "materials_supplies": "materiales e insumos con cantidades",
+    "solution_proposal": "propuesta de solución consolidada",
+    "operations_steps": "operaciones/pasos/subpasos",
+    "standards_safety_environment": "normas técnicas/seguridad/medio ambiente",
+    "textual_diagram": "diagrama textual del flujo de trabajo",
+    "compliance_control": "control de cumplimiento (cumple/no cumple + evidencia)",
+    "evaluation_scores": "valoración con puntajes y justificación"
   }}
 }}
 
@@ -66,6 +88,9 @@ Preguntas a responder (exactamente {n}):
 
 Placeholders a completar:
 {placeholders_json}
+
+Datos del estudiante que debes respetar literalmente en la sección "sections" (excepto student_topic, que debe ser inferido):
+{student_profile_json}
 
 CÓDIGO FUENTE DEL REPOSITORIO:
 {repo_context}
