@@ -9,17 +9,17 @@
    - últimos commits de Git.
 2. Lee el `.docx` y detecta:
    - filas de preguntas (`Pregunta 01: ... ?`),
-   - sección `Resumen`,
+   - sección `Propuesta de solución` (o `Resumen`, por compatibilidad),
    - sección `Diagrama`,
    - placeholders `{{CAMPO}}` (opcional).
 3. Envía todo a **Ollama local** (por defecto `llama3`) y solicita:
    - respuesta para cada pregunta,
-   - resumen largo y detallado del proyecto,
+   - propuesta de solución larga y detallada del proyecto,
    - diagrama en Mermaid,
    - y contenido para secciones del formato de Trabajo Final (datos, problemática, propuesta, cronograma, recursos, ejecución, control y valoración).
 4. Escribe el resultado en un nuevo `.docx`:
    - cada respuesta debajo de su pregunta,
-   - resumen en el bloque “Resumen”,
+   - propuesta de solución en el bloque “Propuesta de solución”,
    - diagrama en el bloque “Diagrama”,
    - y completa automáticamente celdas por etiqueta (por ejemplo: "Apellidos y Nombres", "Cronograma de actividades", "Máquinas y equipos", etc.).
 2. Lee una plantilla `.docx` y detecta placeholders con formato `{{NOMBRE_CAMPO}}`.
@@ -53,7 +53,7 @@ Con tu formato actual **no necesitas placeholders obligatorios**.
 ### Formato recomendado
 - Preguntas en filas con texto tipo: `Pregunta 01: ¿...?...`
 - Justo debajo de cada pregunta, una fila/celda vacía para respuesta.
-- Una celda o bloque que inicie con `Resumen`.
+- Una celda o bloque que inicie con `Propuesta de solución` (también detecta `Resumen` por compatibilidad).
 - Una celda o bloque que inicie con `Diagrama`.
 
 ### Opcional: placeholders
@@ -117,7 +117,7 @@ Opciones útiles:
 7. Ejecuta el comando de `python run_agent.py ...`.
 8. Abre el archivo de salida `.docx` y revisa:
    - respuestas bajo cada pregunta,
-   - resumen largo en “Resumen”,
+  - propuesta de solución larga en “Propuesta de solución”,
    - diagrama en “Diagrama”.
 
 ---
